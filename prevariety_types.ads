@@ -1,17 +1,29 @@
 package Prevariety_Types is 
 
+  type Cone;
+  type Link_to_Cone is access Cone;
+  type Array_of_Cone is array ( integer32 range <> ) of Link_to_Cone;
+
+  type Cone ( ) is record
+    normals : ; --list of floats with some level of precision
+  end record;
+
+  package Lists_of_Cones is new Generic_Lists(Link_to_Cone);
+  type Cone_List is new Lists_of_Cones.List;
+
+--------------------------------------------------------------------------------
+
   type Edge;
   type Link_to_Edge is access Edge;
   type Array_of_Edge is array ( integer32 range <> ) of Link_to_Edge;
 
   type Edge ( ) is record
     label : integer32;
-    inner_normals : ; --list of floats with some level of precision
     point_indices : ; --list of integers
     neighbor_indices : ; --list of integers
     children_indices : ; --list of integers
     parent_indices : ; --list of integers
-    cone : ; --however we end up storing cones
+    cone : Cone; --however we end up storing cones
   end record;
 
   package Lists_of_Edges is new Generic_Lists(Link_to_Edge);
