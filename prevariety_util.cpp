@@ -59,7 +59,7 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 	NewHull.PointToIndexMap = PointToIndexMap;
 	NewHull.IndexToPointMap = IndexToPointMap;
 	
-	NewHull.Facets = FindFacets(Points, NewHull.CPolyhedron);
+	NewHull.Facets = FindFacets(NewHull);
 	
 		//Generators of the lineality space are all of the constraints that are equations.
 	
@@ -79,9 +79,11 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 }
 
 //------------------------------------------------------------------------------
-list<Facet> FindFacets(list<list<GMP_Integer> > Points, C_Polyhedron ph) {
+list<Facet> FindFacets(Hull H) {
 	// Find the Facets by shooting rays at the polytopes
 	// spin through all of the constraints. shoot each constraint at the polytope.
+	C_Polyhedron ph = H.CPolyhedron;
+	list<list<GMP_Integer> > Points = H.Points;
 	list<Facet> Facets;
 	Constraint_System cs = ph.minimized_constraints();
 	cout << "CSSYSTEM" << cs << endl;
@@ -90,10 +92,17 @@ list<Facet> FindFacets(list<list<GMP_Integer> > Points, C_Polyhedron ph) {
 	cs_end = cs.end(); i != cs_end; ++i) {
 		if ((*i).is_inequality()) {
 			list<list<GMP_Integer> > FacetPts = FindInitialForm(Points,ConstraintToPoint(*i));	
-			Facet NewFacet;
-			NewFacet.Points = FacetPts;
-			NewFacet.FacetConstraint = *i;
-			Facets.push_back(NewFacet);
+			Facet F;
+			F.Points = FacetPts;
+			F.FacetConstraint = *i;
+			set<GMP_Integer> PointIndices;
+			
+			list<list<GMP_Integer> >::iterator itr;
+			for (itr=FacetPts.begin(); itr != FacetPts.end(); itr++) {
+				PointIndices.insert(H.PointToIndexMap[*itr]);
+			};
+			F.PointIndices = PointIndices;
+			Facets.push_back(F);
 		};
 	}
 	return Facets;
@@ -101,67 +110,73 @@ list<Facet> FindFacets(list<list<GMP_Integer> > Points, C_Polyhedron ph) {
 
 //------------------------------------------------------------------------------
 list<Edge> FindEdges(Hull H) {
-//from the set of points, take every pair of points. This is a candidate for being an edge.
-//spin through all of the facets. if the candidate edge is sitting on a number of them
-//equal to the dimension of the polyhedron - 1, then, the candidate edge is an actual edge.
-//the cone of the edge is equal to the C_Polyhedron of all of the constraints of the facets
-//as well as the lineality space generators.
 	list<Facet> Facets = H.Facets;
 	list<list<GMP_Integer> > Points = H.Points;
-	list<list<list<GMP_Integer> > > CandidateEdges = FindCandidateEdges(H);
+	list<list<GMP_Integer> > CandidateEdges = FindCandidateEdges(H);
 	list<Edge> Edges;
-	
-	list<list<list<GMP_Integer> > >::iterator itr;
+
+	//The number of facets we want is equal to the dimension of the ambient space minus the number of equations -1
+	Constraint_System cs = H.CPolyhedron.minimized_constraints();
+	int EquationCount = 0;	
+	for (Constraint_System::const_iterator i = cs.begin(),
+	cs_end = cs.end(); i != cs_end; ++i) {
+		if ((*i).is_equality()) {
+			EquationCount++;
+		};
+	};
+	int Dim = H.CPolyhedron.space_dimension() - EquationCount - 1;
+
+	list<list<GMP_Integer> >::iterator itr;
 	for (itr=CandidateEdges.begin(); itr != CandidateEdges.end(); itr++) {
-		list<list<GMP_Integer> > CandidateEdge = (*itr);
-		list<list<GMP_Integer> >::iterator it;
+		list<GMP_Integer> CandidateEdge = (*itr);
+		list<GMP_Integer>::iterator it;
 		it=CandidateEdge.begin();
-		list<GMP_Integer> Point1 = *it;
+		GMP_Integer Point1 = *it;
 		it++;
-		list<GMP_Integer> Point2 = *it;
-		
-		//here it would be good if I could check if Point1 and Point2 are in the set of points on each facet.
-		//set<list<
-		
+		GMP_Integer Point2 = *it;
+
 		int FacetCount = 0;
-		//for facet in facets:
-			//	
-		
-//		if (FacetCount == (possibly polyhedron.dim(). more likely polyhedrom.ambient_dim() - # equations) SUBTRACT 1!!!)
-		if (true == true) {
+		list<Facet>::iterator FacetIt;
+		Constraint_System cs;
+		for (FacetIt=Facets.begin(); FacetIt != Facets.end(); it++) {
+			set<GMP_Integer> PtIndices = (*FacetIt).PointIndices;
+			bool Point1IsInFacet = PtIndices.find(Point1) != PtIndices.end();
+			bool Point2IsInFacet = PtIndices.find(Point2) != PtIndices.end();
+			if (Point1IsInFacet and Point2IsInFacet) {
+				FacetCount++;
+				cs.insert((*FacetIt).FacetConstraint);
+			};
+		};
+
+		if (FacetCount == Dim) {
 			Edge NewEdge;
-			Constraint_System cs;
-			Constraint c;
-			NewEdge.PointIndices.push_back(H.PointToIndexMap[Point1]);
-			NewEdge.PointIndices.push_back(H.PointToIndexMap[Point2]);
+			NewEdge.PointIndices.push_back(Point1);
+			NewEdge.PointIndices.push_back(Point2);
 			NewEdge.Cone = C_Polyhedron(cs);
 			Edges.push_back(NewEdge);
 		}
 	};
 	
-	
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
 
-	
 	return Edges;
 }
 
 //------------------------------------------------------------------------------
-list<list<list<GMP_Integer> > > FindCandidateEdges(Hull H) {
+list<list<GMP_Integer> > FindCandidateEdges(Hull H) {
 
-
-	list<list<list<GMP_Integer> > > CandidateEdges;
+	list<list<GMP_Integer> > CandidateEdges;
 	int n = H.Points.size();
 	vector<int> d(n);
 	for (size_t i = 0; i != d.size(); ++i) {
 		d[i] = i;
 	}
 	do {
-		list<list<GMP_Integer> > CandidateEdge;
+		list<GMP_Integer> CandidateEdgeIndices;
 		for (int i = 0; i < 2; i++) {
-			CandidateEdge.push_back(H.IndexToPointMap[d[i]]);
+			CandidateEdgeIndices.push_back(d[i]);
 		}
-		CandidateEdges.push_back(CandidateEdge);
+		CandidateEdges.push_back(CandidateEdgeIndices);
 		reverse(d.begin()+2, d.end());
 	} while (next_permutation(d.begin(), d.end()));
 	return CandidateEdges;
