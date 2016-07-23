@@ -40,13 +40,15 @@ list<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
 
 //------------------------------------------------------------------------------
 Hull NewHull(list<list<GMP_Integer> > Points) {
-	Hull NewHull;
-	NewHull.CPolyhedron = FindCPolyhedron(Points);
+	Hull H;
+	// Find the C_Polyhedron
+	H.CPolyhedron = FindCPolyhedron(Points);
+
+	H.Points = GeneratorSystemToPoints(H.CPolyhedron.minimized_generators());
+
+	// Create point/index maps.
 	map<list<GMP_Integer>,GMP_Integer> PointToIndexMap;
 	map<GMP_Integer,list<GMP_Integer> > IndexToPointMap;
-
-	NewHull.Points = GeneratorSystemToPoints(NewHull.CPolyhedron.minimized_generators());
-
 	int PtIndex = 0;
 	list<list<GMP_Integer> >::iterator itr;
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
@@ -56,26 +58,27 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 		IndexToPointMap[PtIndex]=*itr;
 		PtIndex++;
 	}
-	NewHull.PointToIndexMap = PointToIndexMap;
-	NewHull.IndexToPointMap = IndexToPointMap;
+	H.PointToIndexMap = PointToIndexMap;
+	H.IndexToPointMap = IndexToPointMap;
 	
-	NewHull.Facets = FindFacets(NewHull);
+	// Find the facets.
+	H.Facets = FindFacets(H);
 	
-		//Generators of the lineality space are all of the constraints that are equations.
-	
-	Constraint_System cs = NewHull.CPolyhedron.minimized_constraints();
+	// Find the lineality space.
+	Constraint_System cs = H.CPolyhedron.minimized_constraints();
+	Constraint_System LS;
 	std::cout << "Below are the generators of the lineality space:" << endl;
 	for (Constraint_System::const_iterator i = cs.begin(),
 		cs_end = cs.end(); i != cs_end; ++i) {
-
 		if ((*i).is_inequality()) {
-			std::cout << "Constraints: " << *i << endl;
-		}
-	}
+			LS.insert(*i);
+		};
+	};
+	H.LinealitySpace = LS;
 	
-	PrintFacets(NewHull.Facets);
-	FindEdges(NewHull);
-	return NewHull;
+	// Find the edges.
+	H.Edges = FindEdges(H);
+	return H;
 }
 
 //------------------------------------------------------------------------------
@@ -150,15 +153,64 @@ list<Edge> FindEdges(Hull H) {
 
 		if (FacetCount == Dim) {
 			Edge NewEdge;
-			NewEdge.PointIndices.push_back(Point1);
-			NewEdge.PointIndices.push_back(Point2);
+			set<GMP_Integer> PointIndices;
+			set<GMP_Integer> NeighborIndices;
+			PointIndices.insert(Point1);
+			PointIndices.insert(Point2);
+			NewEdge.PointIndices = PointIndices;
+			NewEdge.NeighborIndices = NeighborIndices;
+
+			// Need to add all of the generators of the lineality space to the cones.
+			for (Constraint_System::const_iterator i = H.LinealitySpace.begin(),
+			cs_end = H.LinealitySpace.end(); i != cs_end; ++i) {
+				cs.insert(*i);
+			};
 			NewEdge.Cone = C_Polyhedron(cs);
 			Edges.push_back(NewEdge);
 		}
 	};
 	
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
+	
+	int Edge1Index = 0;
 
+	list<Edge>::iterator EdgeItr1;
+	for (EdgeItr1=Edges.begin(); EdgeItr1 != Edges.end(); EdgeItr1++) {
+		list<Edge>::iterator EdgeItr2;
+		int Edge2Index = 0;
+		Edge Edge1 = *EdgeItr1;
+		
+		set<GMP_Integer>::iterator SetItr1=Edge1.PointIndices.begin();
+		GMP_Integer PtIndex1 = *SetItr1;
+		SetItr1++;
+		GMP_Integer PtIndex2 = *SetItr1;
+
+		for (EdgeItr2=Edges.begin(); EdgeItr2 != Edges.end(); EdgeItr2++) {
+			if (Edge1Index == Edge2Index) {
+				Edge2Index++;
+				continue;
+			};
+			Edge Edge2 = *EdgeItr2;
+
+			int IntersectionCount = 0;
+			for (std::set<GMP_Integer>::iterator SetItr2=Edge2.PointIndices.begin(); 
+			SetItr2!=Edge2.PointIndices.end(); ++SetItr2) {
+				if ((*SetItr2 == PtIndex1) or (*SetItr2 == PtIndex2)) {
+					IntersectionCount++;
+				}
+			}
+
+			//if the intersection is one, then the neighbors are edges.
+			if (IntersectionCount == 1) {
+				Edge1.NeighborIndices.insert(Edge2Index);
+				Edge2.NeighborIndices.insert(Edge1Index);
+			} else if (IntersectionCount > 1) {
+				cout << "Internal Error: Two edges intersect at more than one point" << endl;
+			}
+			Edge2Index++;
+		}
+		Edge1Index++;	
+	};
 	return Edges;
 }
 
