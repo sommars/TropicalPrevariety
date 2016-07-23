@@ -9,13 +9,14 @@ namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 class Edge {
 	public:
 		C_Polyhedron Cone;
-		list<GMP_Integer> PointIndices; //this should be a set
-		list<GMP_Integer> NeighborIndices; //this should be a set
+		set<GMP_Integer> PointIndices;
+		set<GMP_Integer> NeighborIndices;
 };
 
 class Facet {
 	public:
 		list<list<GMP_Integer> > Points; //this should be a set
+		set<GMP_Integer> PointIndices;
 		Constraint FacetConstraint;
 };
 
@@ -27,6 +28,7 @@ class Hull {
 		list<Edge> Edges;
 		list<Facet> Facets;
 		C_Polyhedron CPolyhedron;
+		Constraint_System LinealitySpace;
 };
 
 //------------------------------------------------------------------------------
@@ -42,13 +44,13 @@ list<GMP_Integer> ConstraintToPoint(Constraint c);
 Hull NewHull(list<list<GMP_Integer> > Points);
 
 //------------------------------------------------------------------------------
-list<Facet> FindFacets(list<list<GMP_Integer> > Points, C_Polyhedron ph);
+list<Facet> FindFacets(Hull H);
 
 //------------------------------------------------------------------------------
 list<Edge> FindEdges(Hull H);
 
 //------------------------------------------------------------------------------
-list<list<list<GMP_Integer> > > FindCandidateEdges(Hull H);
+list<list<GMP_Integer> > FindCandidateEdges(Hull H);
 
 //------------------------------------------------------------------------------
 GMP_Integer InnerProduct(list<GMP_Integer> V1, list<GMP_Integer> V2);
