@@ -2,7 +2,6 @@
 #include <iostream>
 #include <list>
 #include <stdio.h>
-
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
@@ -75,6 +74,7 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 	}
 	
 	PrintFacets(NewHull.Facets);
+	FindEdges(NewHull);
 	return NewHull;
 }
 
@@ -97,6 +97,74 @@ list<Facet> FindFacets(list<list<GMP_Integer> > Points, C_Polyhedron ph) {
 		};
 	}
 	return Facets;
+}
+
+//------------------------------------------------------------------------------
+list<Edge> FindEdges(Hull H) {
+//from the set of points, take every pair of points. This is a candidate for being an edge.
+//spin through all of the facets. if the candidate edge is sitting on a number of them
+//equal to the dimension of the polyhedron - 1, then, the candidate edge is an actual edge.
+//the cone of the edge is equal to the C_Polyhedron of all of the constraints of the facets
+//as well as the lineality space generators.
+	list<Facet> Facets = H.Facets;
+	list<list<GMP_Integer> > Points = H.Points;
+	list<list<list<GMP_Integer> > > CandidateEdges = FindCandidateEdges(H);
+	list<Edge> Edges;
+	
+	list<list<list<GMP_Integer> > >::iterator itr;
+	for (itr=CandidateEdges.begin(); itr != CandidateEdges.end(); itr++) {
+		list<list<GMP_Integer> > CandidateEdge = (*itr);
+		list<list<GMP_Integer> >::iterator it;
+		it=CandidateEdge.begin();
+		list<GMP_Integer> Point1 = *it;
+		it++;
+		list<GMP_Integer> Point2 = *it;
+		
+		//here it would be good if I could check if Point1 and Point2 are in the set of points on each facet.
+		//set<list<
+		
+		int FacetCount = 0;
+		//for facet in facets:
+			//	
+		
+//		if (FacetCount == (possibly polyhedron.dim(). more likely polyhedrom.ambient_dim() - # equations) SUBTRACT 1!!!)
+		if (true == true) {
+			Edge NewEdge;
+			Constraint_System cs;
+			Constraint c;
+			NewEdge.PointIndices.push_back(H.PointToIndexMap[Point1]);
+			NewEdge.PointIndices.push_back(H.PointToIndexMap[Point2]);
+			NewEdge.Cone = C_Polyhedron(cs);
+			Edges.push_back(NewEdge);
+		}
+	};
+	
+	
+	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
+
+	
+	return Edges;
+}
+
+//------------------------------------------------------------------------------
+list<list<list<GMP_Integer> > > FindCandidateEdges(Hull H) {
+
+
+	list<list<list<GMP_Integer> > > CandidateEdges;
+	int n = H.Points.size();
+	vector<int> d(n);
+	for (size_t i = 0; i != d.size(); ++i) {
+		d[i] = i;
+	}
+	do {
+		list<list<GMP_Integer> > CandidateEdge;
+		for (int i = 0; i < 2; i++) {
+			CandidateEdge.push_back(H.IndexToPointMap[d[i]]);
+		}
+		CandidateEdges.push_back(CandidateEdge);
+		reverse(d.begin()+2, d.end());
+	} while (next_permutation(d.begin(), d.end()));
+	return CandidateEdges;
 }
 
 //------------------------------------------------------------------------------
