@@ -18,6 +18,7 @@ class Facet {
 		list<list<GMP_Integer> > Points; //this should be a set
 		set<GMP_Integer> PointIndices;
 		Constraint FacetConstraint;
+		Constraint_System ConeConstraints;
 };
 
 class Hull {
@@ -30,6 +31,9 @@ class Hull {
 		C_Polyhedron CPolyhedron;
 		Constraint_System LinealitySpace;
 };
+
+//------------------------------------------------------------------------------
+C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2);
 
 //------------------------------------------------------------------------------
 list<GMP_Integer> GeneratorToPoint(Generator g);
@@ -75,3 +79,12 @@ void PrintFacet(Facet F);
 
 //------------------------------------------------------------------------------
 void PrintFacets(list<Facet> Facets);
+
+//------------------------------------------------------------------------------
+int FindCSDim(Constraint_System cs);
+
+//------------------------------------------------------------------------------
+void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim = true);
+
+//------------------------------------------------------------------------------
+void PrintCPolyhedrons(list<C_Polyhedron> phs, bool PrintIf0Dim = true);
