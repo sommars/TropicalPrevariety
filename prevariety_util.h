@@ -8,22 +8,20 @@ namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 
 class Edge {
 	public:
-		C_Polyhedron cone;
-		list<GMP_Integer> pointIndices;
-		list<GMP_Integer> neighborIndices;
-		list<GMP_Integer> childrenIndices;
-		list<GMP_Integer> parentIndices;
+		C_Polyhedron Cone;
+		list<GMP_Integer> PointIndices; //this should be a set
+		list<GMP_Integer> NeighborIndices; //this should be a set
 };
 
 class Facet {
 	public:
-		list<list<GMP_Integer> > Points;
+		list<list<GMP_Integer> > Points; //this should be a set
 		Constraint FacetConstraint;
 };
 
 class Hull {
 	public:
-		list<list<GMP_Integer> > Points;
+		list<list<GMP_Integer> > Points; //this should be a set
 		map<list<GMP_Integer>,GMP_Integer> PointToIndexMap;
 		map<GMP_Integer,list<GMP_Integer> > IndexToPointMap;
 		list<Edge> Edges;
@@ -45,6 +43,12 @@ Hull NewHull(list<list<GMP_Integer> > Points);
 
 //------------------------------------------------------------------------------
 list<Facet> FindFacets(list<list<GMP_Integer> > Points, C_Polyhedron ph);
+
+//------------------------------------------------------------------------------
+list<Edge> FindEdges(Hull H);
+
+//------------------------------------------------------------------------------
+list<list<list<GMP_Integer> > > FindCandidateEdges(Hull H);
 
 //------------------------------------------------------------------------------
 GMP_Integer InnerProduct(list<GMP_Integer> V1, list<GMP_Integer> V2);
