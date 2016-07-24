@@ -11,7 +11,6 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	Constraint_System cs;
 	Constraint_System cs1 = ph1.minimized_constraints();
 	Constraint_System cs2 = ph2.minimized_constraints();
-	
 	for (Constraint_System::const_iterator i = cs1.begin(),
 	cs1_end = cs1.end(); i != cs1_end; ++i) {
 		cs.insert(*i);
@@ -87,28 +86,32 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 	// Find the facets.
 	H.Facets = FindFacets(H);
 	cout << "Number of facets: " << H.Facets.size() << endl;
-	
+
+
+	// TODO: THIS MIGHT BE WRONG! Consider removing.	
 	// Find the lineality space.
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
-	Constraint_System LS;
-	cout << "Below are the generators of the lineality space:" << endl;
+	Generator_System gs3;
 	for (Constraint_System::const_iterator i = cs.begin(),
-		cs_end = cs.end(); i != cs_end; ++i) {
-		if ((*i).is_equality()) {
-			LS.insert(*i);
-			cout << "Gen:" << *i << endl;
+	cs_end = cs.end(); i != cs_end; ++i) {
+		Constraint c = *i;
+		if (c.is_equality()) {
+			Linear_Expression ee;
+			for (dimension_type iii = c.space_dimension(); iii-- > 0; ) {
+				ee += c.coefficient(Variable(iii)) * Variable(iii);
+			};
+			gs3.insert(line(ee));
 		};
 	};
-	H.LinealitySpace = LS;
-	
+	H.Lines = gs3;
 	cout << "LinealitySpace found" << endl;
 	// Find the edges.
 	H.Edges = FindEdges(H);
 	
 	cout << "Edges Found!" << endl;
 	cout << "Number of edges: " << H.Edges.size() << endl;
-	
 
+	cout << "Facet finished" << endl << endl << endl;
 	return H;
 }
 
@@ -143,7 +146,6 @@ list<Facet> FindFacets(Hull H) {
 			gs.insert(ray(LE1));
 			gs.insert(point(LE2));
 			C_Polyhedron CPoly = C_Polyhedron(gs);
-			
 			
 			F.ConeConstraints = CPoly.minimized_constraints();
 			
@@ -183,6 +185,8 @@ list<Edge> FindEdges(Hull H) {
 
 		int FacetCount = 0;
 		list<Facet>::iterator FacetIt;
+		
+/*		
 		Constraint_System cs;
 		for (FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
 			set<GMP_Integer> PtIndices = (*FacetIt).PointIndices;
@@ -190,13 +194,36 @@ list<Edge> FindEdges(Hull H) {
 			bool Point2IsInFacet = PtIndices.find(Point2) != PtIndices.end();
 			if (Point1IsInFacet and Point2IsInFacet) {
 				FacetCount++;
+					cout << "CC" << endl;
 				Constraint_System ConeConstraints = (*FacetIt).ConeConstraints;
 				for (Constraint_System::const_iterator iii = ConeConstraints.begin(),
 				cs_end = ConeConstraints.end(); iii != cs_end; ++iii) {
 					cs.insert(*iii);
+					cout << "BBBB " << *iii << endl;
 				}
 			};
 		};
+*/
+
+
+		Generator_System gs;
+		for (FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
+			set<GMP_Integer> PtIndices = (*FacetIt).PointIndices;
+			bool Point1IsInFacet = PtIndices.find(Point1) != PtIndices.end();
+			bool Point2IsInFacet = PtIndices.find(Point2) != PtIndices.end();
+			if (Point1IsInFacet and Point2IsInFacet) {
+				FacetCount++;
+				Generator_System ConeGenerators = C_Polyhedron((*FacetIt).ConeConstraints).minimized_generators();
+				for (Generator_System::const_iterator iii = ConeGenerators.begin(),
+				cs_end = ConeGenerators.end(); iii != cs_end; ++iii) {
+					gs.insert(*iii);
+				}
+			};
+		};
+
+
+
+
 
 		if (FacetCount == Dim) {
 			Edge NewEdge;
@@ -208,11 +235,12 @@ list<Edge> FindEdges(Hull H) {
 			NewEdge.NeighborIndices = NeighborIndices;
 
 			// Need to add all of the generators of the lineality space to the cones.
-			for (Constraint_System::const_iterator i = H.LinealitySpace.begin(),
-			cs_end = H.LinealitySpace.end(); i != cs_end; ++i) {
-				cs.insert(*i);
+			Generator_System gs2 = H.Lines;
+			for (Generator_System::const_iterator i = gs2.begin(),
+			cs_end = gs2.end(); i != cs_end; ++i) {
+				gs.insert(*i);
 			};
-			NewEdge.Cone = C_Polyhedron(cs);
+			NewEdge.Cone = C_Polyhedron(gs);
 			Edges.push_back(NewEdge);
 		}
 	};
@@ -348,7 +376,6 @@ C_Polyhedron FindCPolyhedron(list<list<GMP_Integer> > Points) {
 			LE = LE + Variable(VarIndex) * (*it);
 			VarIndex++;
 		}
-		cout << "Generator: " << point(LE) << endl;
 		gs.insert(point(LE));
 	}
 	C_Polyhedron ph = C_Polyhedron(gs);
@@ -403,13 +430,14 @@ void PrintFacets(list<Facet> Facets) {
 
 //------------------------------------------------------------------------------
 int FindCSDim(Constraint_System cs) {
-	int EquationCount = 0;	
+	int EquationCount = 0;
 	for (Constraint_System::const_iterator i = cs.begin(),
 	cs_end = cs.end(); i != cs_end; ++i) {
 		if ((*i).is_equality()) {
 			EquationCount++;
 		};
 	};
+	cout << "DIM! " << cs.space_dimension() - EquationCount << endl; 
 	return cs.space_dimension() - EquationCount;
 }
 
