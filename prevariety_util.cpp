@@ -25,8 +25,8 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 }
 
 //------------------------------------------------------------------------------
-list<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
-	list<GMP_Integer> Result;
+vector<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
+	vector<GMP_Integer> Result;
 	for (int i = 0; i < g.space_dimension(); i++) {
 		Result.push_back((g).coefficient(Variable(i)));
 	}
@@ -35,8 +35,8 @@ list<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
 }
 
 //------------------------------------------------------------------------------
-list<list<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
-	list<list<GMP_Integer> > Result;
+vector<vector<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
+	vector<vector<GMP_Integer> > Result;
 
 	for (Generator_System::const_iterator i = gs.begin(),
 	gs_end = gs.end(); i != gs_end; ++i) {
@@ -46,8 +46,8 @@ list<list<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
 }
 
 //------------------------------------------------------------------------------
-list<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
-	list<GMP_Integer> Result;
+vector<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
+	vector<GMP_Integer> Result;
 	for (int i = 0; i < c.space_dimension(); i++) {
 		Result.push_back((c).coefficient(Variable(i)));
 	}
@@ -57,7 +57,7 @@ list<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
 }
 
 //------------------------------------------------------------------------------
-Hull NewHull(list<list<GMP_Integer> > Points) {
+Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	Hull H;
 	// Find the C_Polyhedron
 	H.CPolyhedron = FindCPolyhedron(Points);
@@ -69,12 +69,12 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 	cout << "Number of pts: " << H.Points.size() << endl;
 
 	// Create point/index maps.
-	map<list<GMP_Integer>,GMP_Integer> PointToIndexMap;
-	map<GMP_Integer,list<GMP_Integer> > IndexToPointMap;
+	map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
+	map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
 	int PtIndex = 0;
-	list<list<GMP_Integer> >::iterator itr;
+	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=H.Points.begin(); itr != H.Points.end(); itr++) {
-		list<GMP_Integer>Point=*itr;
+		vector<GMP_Integer>Point=*itr;
 
 		PointToIndexMap[*itr]=PtIndex;
 		IndexToPointMap[PtIndex]=*itr;
@@ -116,25 +116,25 @@ Hull NewHull(list<list<GMP_Integer> > Points) {
 }
 
 //------------------------------------------------------------------------------
-list<Facet> FindFacets(Hull H) {
+vector<Facet> FindFacets(Hull H) {
 	// Find the Facets by shooting rays at the polytopes
 	// spin through all of the constraints. shoot each constraint at the polytope.
 	C_Polyhedron ph = H.CPolyhedron;
-	list<list<GMP_Integer> > Points = H.Points;
-	list<Facet> Facets;
+	vector<vector<GMP_Integer> > Points = H.Points;
+	vector<Facet> Facets;
 	Constraint_System cs = ph.minimized_constraints();
 	
 	for (Constraint_System::const_iterator i = cs.begin(),
 	cs_end = cs.end(); i != cs_end; ++i) {
 		if ((*i).is_inequality()) {
-			list<GMP_Integer> Pt = ConstraintToPoint(*i);
-			list<list<GMP_Integer> > FacetPts = FindInitialForm(Points, Pt);
+			vector<GMP_Integer> Pt = ConstraintToPoint(*i);
+			vector<vector<GMP_Integer> > FacetPts = FindInitialForm(Points, Pt);
 			Facet F;
 			F.Points = FacetPts;
 			F.FacetConstraint = *i;
 			
 			Generator_System gs;
-			list<GMP_Integer>::iterator it;
+			vector<GMP_Integer>::iterator it;
 			Linear_Expression LE1;
 			Linear_Expression LE2;
 			int VarIndex = 0;
@@ -151,7 +151,7 @@ list<Facet> FindFacets(Hull H) {
 			
 			set<GMP_Integer> PointIndices;
 			
-			list<list<GMP_Integer> >::iterator itr;
+			vector<vector<GMP_Integer> >::iterator itr;
 			
 			for (itr=FacetPts.begin(); itr != FacetPts.end(); itr++) {
 				PointIndices.insert(H.PointToIndexMap[*itr]);
@@ -164,27 +164,27 @@ list<Facet> FindFacets(Hull H) {
 }
 
 //------------------------------------------------------------------------------
-list<Edge> FindEdges(Hull H) {
-	list<Facet> Facets = H.Facets;
-	list<list<GMP_Integer> > Points = H.Points;
-	list<list<GMP_Integer> > CandidateEdges = FindCandidateEdges(H);
-	list<Edge> Edges;
+vector<Edge> FindEdges(Hull H) {
+	vector<Facet> Facets = H.Facets;
+	vector<vector<GMP_Integer> > Points = H.Points;
+	vector<vector<GMP_Integer> > CandidateEdges = FindCandidateEdges(H);
+	vector<Edge> Edges;
 
 	//The number of facets we want is equal to the dimension of the ambient space minus the number of equations -1
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
 	int Dim = FindCSDim(cs) - 1;
 
-	list<list<GMP_Integer> >::iterator itr;
+	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=CandidateEdges.begin(); itr != CandidateEdges.end(); itr++) {
-		list<GMP_Integer> CandidateEdge = (*itr);
-		list<GMP_Integer>::iterator it;
+		vector<GMP_Integer> CandidateEdge = (*itr);
+		vector<GMP_Integer>::iterator it;
 		it=CandidateEdge.begin();
 		GMP_Integer Point1 = *it;
 		it++;
 		GMP_Integer Point2 = *it;
 
 		int FacetCount = 0;
-		list<Facet>::iterator FacetIt;
+		vector<Facet>::iterator FacetIt;
 		
 /*		
 		Constraint_System cs;
@@ -250,9 +250,9 @@ list<Edge> FindEdges(Hull H) {
 	
 	int Edge1Index = 0;
 
-	list<Edge>::iterator EdgeItr1;
+	vector<Edge>::iterator EdgeItr1;
 	for (EdgeItr1=Edges.begin(); EdgeItr1 != Edges.end(); EdgeItr1++) {
-		list<Edge>::iterator EdgeItr2;
+		vector<Edge>::iterator EdgeItr2;
 		int Edge2Index = 0;
 		Edge Edge1 = *EdgeItr1;
 		
@@ -292,16 +292,16 @@ list<Edge> FindEdges(Hull H) {
 }
 
 //------------------------------------------------------------------------------
-list<list<GMP_Integer> > FindCandidateEdges(Hull H) {
+vector<vector<GMP_Integer> > FindCandidateEdges(Hull H) {
 
-	list<list<GMP_Integer> > CandidateEdges;
+	vector<vector<GMP_Integer> > CandidateEdges;
 	int n = H.Points.size();
 	vector<int> d(n);
 	for (size_t i = 0; i != d.size(); ++i) {
 		d[i] = i;
 	}
 	do {
-		list<GMP_Integer> CandidateEdgeIndices;
+		vector<GMP_Integer> CandidateEdgeIndices;
 		for (int i = 0; i < 2; i++) {
 			CandidateEdgeIndices.push_back(d[i]);
 		}
@@ -314,7 +314,7 @@ list<list<GMP_Integer> > FindCandidateEdges(Hull H) {
 }
 
 //------------------------------------------------------------------------------
-GMP_Integer InnerProduct(list<GMP_Integer> V1, list<GMP_Integer> V2) {
+GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
 	/* 
 		Computes the inner product of two vectors.
 	*/
@@ -322,8 +322,8 @@ GMP_Integer InnerProduct(list<GMP_Integer> V1, list<GMP_Integer> V2) {
 		cout << "Internal Error: InnerProduct with different sizes" << endl;
 	};
 	GMP_Integer Result = 0;
-	list<GMP_Integer>::iterator it1;
-	list<GMP_Integer>::iterator it2;
+	vector<GMP_Integer>::iterator it1;
+	vector<GMP_Integer>::iterator it2;
 	it2 = V2.begin();
 	for (it1=V1.begin(); it1 != V1.end(); it1++) {
 		Result = Result + (*it1) * (*it2);
@@ -333,15 +333,15 @@ GMP_Integer InnerProduct(list<GMP_Integer> V1, list<GMP_Integer> V2) {
 }
 
 //------------------------------------------------------------------------------
-list<list<GMP_Integer> > FindInitialForm(list<list<GMP_Integer> > Points, list<GMP_Integer> Vector) {
+vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > Points, vector<GMP_Integer> Vector) {
 	/* 
 		Computes the initial form of a vector and a set of points.
 	*/
 	if (Points.size() == 0) {
 		return Points;
 	};
-	list<list<GMP_Integer> > IF;
-	list<list<GMP_Integer> >::iterator itr;
+	vector<vector<GMP_Integer> > IF;
+	vector<vector<GMP_Integer> >::iterator itr;
 
 	itr=Points.begin();
 	IF.push_back(*itr);
@@ -363,12 +363,12 @@ list<list<GMP_Integer> > FindInitialForm(list<list<GMP_Integer> > Points, list<G
 }
 
 //------------------------------------------------------------------------------
-C_Polyhedron FindCPolyhedron(list<list<GMP_Integer> > Points) {
+C_Polyhedron FindCPolyhedron(vector<vector<GMP_Integer> > Points) {
 	Generator_System gs;
-	list<list<GMP_Integer> >::iterator itr;
+	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
-		list<GMP_Integer>Point=*itr;
-		list<GMP_Integer>::iterator it;
+		vector<GMP_Integer>Point=*itr;
+		vector<GMP_Integer>::iterator it;
 		Linear_Expression LE;
 		int VarIndex = 0;
 		PrintPoint(Point);
@@ -384,8 +384,8 @@ C_Polyhedron FindCPolyhedron(list<list<GMP_Integer> > Points) {
 }
 
 //------------------------------------------------------------------------------
-void PrintPoint(list<int> Point) {
-	list<int>::iterator it;
+void PrintPoint(vector<int> Point) {
+	vector<int>::iterator it;
 	cout << "{ ";
 	for (it=Point.begin(); it != Point.end(); it++) {
 		cout << (*it) << " ";
@@ -394,8 +394,8 @@ void PrintPoint(list<int> Point) {
 }
 
 //------------------------------------------------------------------------------
-void PrintPoint(list<GMP_Integer> Point) {
-	list<GMP_Integer>::iterator it;
+void PrintPoint(vector<GMP_Integer> Point) {
+	vector<GMP_Integer>::iterator it;
 	cout << "{ ";
 	for (it=Point.begin(); it != Point.end(); it++) {
 		cout << (*it) << " ";
@@ -404,8 +404,8 @@ void PrintPoint(list<GMP_Integer> Point) {
 }
 
 //------------------------------------------------------------------------------
-void PrintPoints(list<list<GMP_Integer> > Points) {
-	list<list<GMP_Integer> >::iterator itr;
+void PrintPoints(vector<vector<GMP_Integer> > Points) {
+	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
 		PrintPoint(*itr);
 	};
@@ -420,8 +420,8 @@ void PrintFacet(Facet F){
 }
 
 //------------------------------------------------------------------------------
-void PrintFacets(list<Facet> Facets) {
-	list<Facet>::iterator it;
+void PrintFacets(vector<Facet> Facets) {
+	vector<Facet>::iterator it;
 	cout << "Printing Facets-------------------------------" << endl;
 	for (it=Facets.begin(); it != Facets.end(); it ++) {
 		cout << "NEW FACET" << endl;
@@ -437,14 +437,16 @@ int FindCSDim(Constraint_System cs) {
 			EquationCount++;
 		};
 	};
-	cout << "DIM! " << cs.space_dimension() - EquationCount << endl; 
+	cout << "DIM! " << cs.space_dimension() - EquationCount << endl;
 	return cs.space_dimension() - EquationCount;
 }
 
 //------------------------------------------------------------------------------
 void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim) {
 	Constraint_System cs = ph.minimized_constraints();
-	
+
+	// Consider getting rid of FindCSDim.
+	cout << "PHDIM! " << ph.affine_dimension() << endl;
 	int Dim = FindCSDim(cs);
 	if ((PrintIf0Dim == false) and (Dim == 0)) {
 		return;
@@ -465,8 +467,8 @@ void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim) {
 }
 
 //------------------------------------------------------------------------------
-void PrintCPolyhedrons(list<C_Polyhedron> phs, bool PrintIf0Dim) {
-	list<C_Polyhedron>::iterator it;
+void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim) {
+	vector<C_Polyhedron>::iterator it;
 	for (it=phs.begin(); it != phs.end(); it++) {
 		PrintCPolyhedron(*it, PrintIf0Dim);
 	};
