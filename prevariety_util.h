@@ -15,7 +15,7 @@ class Edge {
 
 class Facet {
 	public:
-		list<list<GMP_Integer> > Points; //this should be a set
+		vector<vector<GMP_Integer> > Points; //this should be a set
 		set<GMP_Integer> PointIndices;
 		Constraint FacetConstraint;
 		Constraint_System ConeConstraints;
@@ -23,62 +23,63 @@ class Facet {
 
 class Hull {
 	public:
-		list<list<GMP_Integer> > Points; //this should be a set
-		map<list<GMP_Integer>,GMP_Integer> PointToIndexMap;
-		map<GMP_Integer,list<GMP_Integer> > IndexToPointMap;
-		list<Edge> Edges;
-		list<Facet> Facets;
+		vector<vector<GMP_Integer> > Points; //this should be a set
+		map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
+		map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
+		vector<Edge> Edges;
+		vector<Facet> Facets;
 		C_Polyhedron CPolyhedron;
 		Constraint_System LinealitySpace;
+		Generator_System Lines;
 };
 
 //------------------------------------------------------------------------------
 C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2);
 
 //------------------------------------------------------------------------------
-list<GMP_Integer> GeneratorToPoint(Generator g);
+vector<GMP_Integer> GeneratorToPoint(Generator g);
 
 //------------------------------------------------------------------------------
-list<list<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs);
+vector<vector<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs);
 
 //------------------------------------------------------------------------------
-list<GMP_Integer> ConstraintToPoint(Constraint c);
+vector<GMP_Integer> ConstraintToPoint(Constraint c);
 
 //------------------------------------------------------------------------------
-Hull NewHull(list<list<GMP_Integer> > Points);
+Hull NewHull(vector<vector<GMP_Integer> > Points);
 
 //------------------------------------------------------------------------------
-list<Facet> FindFacets(Hull H);
+vector<Facet> FindFacets(Hull H);
 
 //------------------------------------------------------------------------------
-list<Edge> FindEdges(Hull H);
+vector<Edge> FindEdges(Hull H);
 
 //------------------------------------------------------------------------------
-list<list<GMP_Integer> > FindCandidateEdges(Hull H);
+vector<vector<GMP_Integer> > FindCandidateEdges(Hull H);
 
 //------------------------------------------------------------------------------
-GMP_Integer InnerProduct(list<GMP_Integer> V1, list<GMP_Integer> V2);
+GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2);
 
 //------------------------------------------------------------------------------
-list<list<GMP_Integer> > FindInitialForm(list<list<GMP_Integer> > Points, list<GMP_Integer> Vector);
+vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > Points, vector<GMP_Integer> Vector);
 
 //------------------------------------------------------------------------------
-C_Polyhedron FindCPolyhedron(list<list<GMP_Integer> > Points);
+C_Polyhedron FindCPolyhedron(vector<vector<GMP_Integer> > Points);
 
 //------------------------------------------------------------------------------
-void PrintPoint(list<int> Point);
+void PrintPoint(vector<int> Point);
 
 //------------------------------------------------------------------------------
-void PrintPoint(list<GMP_Integer> Point);
+void PrintPoint(vector<GMP_Integer> Point);
 
 //------------------------------------------------------------------------------
-void PrintPoints(list<list<GMP_Integer> > Points);
+void PrintPoints(vector<vector<GMP_Integer> > Points);
 
 //------------------------------------------------------------------------------
 void PrintFacet(Facet F);
 
 //------------------------------------------------------------------------------
-void PrintFacets(list<Facet> Facets);
+void PrintFacets(vector<Facet> Facets);
 
 //------------------------------------------------------------------------------
 int FindCSDim(Constraint_System cs);
@@ -87,4 +88,4 @@ int FindCSDim(Constraint_System cs);
 void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim = true);
 
 //------------------------------------------------------------------------------
-void PrintCPolyhedrons(list<C_Polyhedron> phs, bool PrintIf0Dim = true);
+void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim = true);
