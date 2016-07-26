@@ -89,3 +89,6 @@ void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim = true);
 
 //------------------------------------------------------------------------------
 void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim = true);
+
+//------------------------------------------------------------------------------
+set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2);
