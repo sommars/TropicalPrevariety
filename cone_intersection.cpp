@@ -43,8 +43,11 @@ int main(int argc, char* argv[]) {
 	vector<Hull> Hulls;
 	vector<vector<vector<GMP_Integer> > > Cyc4 = CyclicN(n);
 	vector<vector<vector<GMP_Integer> > >::iterator CycIt;
+	int TestIndex = 0;
 	for (CycIt=Cyc4.begin(); CycIt != Cyc4.end(); CycIt++) {
+		//if (TestIndex == 2) continue;
 		Hulls.push_back(NewHull(*CycIt));
+		TestIndex++;
 	}
 
 	cout << "Hull count: " << Hulls.size() << endl;
@@ -96,6 +99,9 @@ int main(int argc, char* argv[]) {
 				vector<C_Polyhedron>::iterator TestConesItr;
 				for (TestConesItr=TestCones.begin(); TestConesItr != TestCones.end(); TestConesItr++) {
 					C_Polyhedron NewCone = IntersectCones(*TestConesItr, Cone);
+					//PrintCPolyhedron(NewCone);
+					//cout << "DIM: " << NewCone.affine_dimension() << endl;
+					//cin.get();
 					IntersectionCount++;
 					if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
 						NewCones.push_back(NewCone);
@@ -190,11 +196,14 @@ int main(int argc, char* argv[]) {
 						C_Polyhedron TempCone = IntersectCones(EdgeToTest.Cone, NewCone);
 						ConeIntersectionCount++;
 						//Note: this is why we want to use reduced cyclic n. Consider switching this to if it has any rays.
+						//PrintCPolyhedron(TempCone);
+						//cout << "DIM: " << TempCone.affine_dimension() << endl;
+						//cin.get();
 						if (TempCone.affine_dimension() > 0) {
 							PretropGraphEdges.push_back(EToT);
 							
-							if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
-								NewCones.push_back(NewCone);
+							if ( find(NewCones.begin(), NewCones.end(), TempCone) == NewCones.end() ) {
+								NewCones.push_back(TempCone);
 							};	
 							set<GMP_Integer>::iterator NeighborItr;
 							for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
@@ -212,21 +221,14 @@ int main(int argc, char* argv[]) {
 						} else {
 							NotPretropGraphEdges.push_back(EToT);
 						};
-					}
-
-					
-					
+					};
 				};
 				ConeVector = NewCones;
 			};
+			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", HullIndex, Hulls.size(), ConeVector.size(),ConeIntersectionCount);
 			HullIndex++;
 		};
-
 		cout << "ConeVector count: " << ConeVector.size() << endl;
-
-	
-	
-	
 	};
 	
 	
@@ -281,4 +283,5 @@ int main(int argc, char* argv[]) {
 		};
 	};
 	cout << "Number of pretropisms found: " << gv.size() << endl;
+	PrintTime();
 }
