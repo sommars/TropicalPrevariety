@@ -41,6 +41,26 @@ vector<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
 }
 
 //------------------------------------------------------------------------------
+vector<GMP_Integer> ParseFinalOutput(Generator g) { //page 251
+	vector<GMP_Integer> Result;
+	bool reverse = false;
+	
+	for (int i = 0; i < g.space_dimension(); i++) {
+		if (g.coefficient(Variable(i)) != 0) {
+			if (g.coefficient(Variable(i)) < 0){
+				reverse = true;
+			};
+			break;
+		};
+	}	
+	for (int i = 0; i < g.space_dimension(); i++) {
+		Result.push_back((g).coefficient(Variable(i)));
+	}
+
+	return Result;
+}
+
+//------------------------------------------------------------------------------
 vector<vector<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
 	vector<vector<GMP_Integer> > Result;
 
@@ -102,11 +122,17 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	cs_end = cs.end(); i != cs_end; ++i) {
 		Constraint c = *i;
 		if (c.is_equality()) {
-			Linear_Expression ee;
+			Linear_Expression ee1;
+			Linear_Expression ee2;
 			for (dimension_type iii = c.space_dimension(); iii-- > 0; ) {
-				ee += c.coefficient(Variable(iii)) * Variable(iii);
+				ee1 += c.coefficient(Variable(iii)) * Variable(iii);
+				ee2 += -1 * c.coefficient(Variable(iii)) * Variable(iii);
 			};
-			gs3.insert(line(ee));
+			gs3.insert(ray(ee1));
+			gs3.insert(ray(ee2));
+			//Something is still wrong here. The cones we are getting are different...somehow...
+			//cout << gs3 << endl;
+			//cin.get();
 		};
 	};
 	H.Lines = gs3;
@@ -138,7 +164,6 @@ vector<Facet> FindFacets(Hull H) {
 			Facet F;
 			F.Points = FacetPts;
 			F.FacetConstraint = *i;
-			cout << "Number of pts on facet: " << F.Points.size() << endl;
 			Generator_System gs;
 			vector<GMP_Integer>::iterator it;
 			Linear_Expression LE1;
@@ -450,7 +475,7 @@ void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim) {
 	Constraint_System cs = ph.minimized_constraints();
 
 	// Consider getting rid of FindCSDim.
-	cout << "PHDIM! " << ph.affine_dimension() << endl;
+	cout << "PHDIM! " << ph.affine_dimension() << endl;/*
 	int Dim = FindCSDim(cs);
 	if ((PrintIf0Dim == false) and (Dim == 0)) {
 		return;
@@ -466,7 +491,10 @@ void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim) {
 	for (Generator_System::const_iterator i = gs.begin(),
 	gs_end = gs.end(); i != gs_end; ++i) {
 		cout << "Generator: " << *i << endl;
-	}
+	}*/
+	cout << ph.minimized_generators();
+	//PrintPoints(GeneratorSystemToPoints(ph.minimized_generators()));
+	
 	cout << endl << endl;
 }
 
@@ -476,4 +504,19 @@ void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim) {
 	for (it=phs.begin(); it != phs.end(); it++) {
 		PrintCPolyhedron(*it, PrintIf0Dim);
 	};
+}
+
+//------------------------------------------------------------------------------
+set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2) {
+	set<GMP_Integer> Result;
+	set<GMP_Integer>::iterator SetItr;
+	for (SetItr = S1.begin(); SetItr != S1.end(); SetItr++) {
+		GMP_Integer TestInt = *SetItr;
+		if ( find(S2.begin(), S2.end(), TestInt) != S2.end() ) {
+			if ( find(Result.begin(), Result.end(), TestInt) == Result.end() ) {
+				Result.insert(TestInt);
+			};
+		};
+	};
+	return Result;
 }
