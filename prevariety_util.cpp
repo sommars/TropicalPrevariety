@@ -11,6 +11,9 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	Constraint_System cs;
 	Constraint_System cs1 = ph1.minimized_constraints();
 	Constraint_System cs2 = ph2.minimized_constraints();
+//	cout << "START" << endl;
+//	PrintCPolyhedron(ph1);
+//	PrintCPolyhedron(ph2);
 	for (Constraint_System::const_iterator i = cs1.begin(),
 	cs1_end = cs1.end(); i != cs1_end; ++i) {
 		cs.insert(*i);
@@ -21,6 +24,9 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	}
 	C_Polyhedron ph(cs);
 	ph.minimized_constraints();
+	
+//	PrintCPolyhedron(ph);
+//	cout << "END" << endl;
 	return ph;
 }
 
@@ -132,7 +138,7 @@ vector<Facet> FindFacets(Hull H) {
 			Facet F;
 			F.Points = FacetPts;
 			F.FacetConstraint = *i;
-			
+			cout << "Number of pts on facet: " << F.Points.size() << endl;
 			Generator_System gs;
 			vector<GMP_Integer>::iterator it;
 			Linear_Expression LE1;
@@ -221,11 +227,8 @@ vector<Edge> FindEdges(Hull H) {
 			};
 		};
 
-
-
-
-
-		if (FacetCount == Dim) {
+		// Is >= correct?
+		if (FacetCount >= Dim) {
 			Edge NewEdge;
 			set<GMP_Integer> PointIndices;
 			set<GMP_Integer> NeighborIndices;
@@ -246,6 +249,7 @@ vector<Edge> FindEdges(Hull H) {
 	};
 	
 	cout << "Print Edges initialized" << endl;
+	
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
 	
 	int Edge1Index = 0;
