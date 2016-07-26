@@ -2,6 +2,7 @@
 #include <ppl.hh>
 #include <ctime>
 #include "prevariety_util.h"
+#include <algorithm>
 
 using namespace std;
 using namespace Parma_Polyhedra_Library;
@@ -32,8 +33,8 @@ vector<vector<vector<GMP_Integer> > > CyclicN(int n) {
 }
 
 int main(int argc, char* argv[]) {
-	if (argc != 2) {
-		cout << "Internal error: expected an argument." << endl;
+	if (argc != 3) {
+		cout << "Internal error: expected two arguments." << endl;
 		return 1;
 	}
 
@@ -46,61 +47,111 @@ int main(int argc, char* argv[]) {
 		Hulls.push_back(NewHull(*CycIt));
 	}
 
-	
 	cout << "Hull count: " << Hulls.size() << endl;
 	
 	cout << "Found all hulls." << endl << endl << endl;
 	
+	vector<C_Polyhedron> ConeVector;	
 	
-	vector<vector<C_Polyhedron> > Cones;
-	vector<C_Polyhedron> Conevector;
-	int HullIndex = 0;
-	
-	vector<Hull>::iterator it;
-	for (it=Hulls.begin(); it != Hulls.end(); it++) {
-		vector<Edge> Edges = (*it).Edges;
-		vector<C_Polyhedron> HullCones;
-		vector<Edge>::iterator itr;
-		
-		for (itr=Edges.begin(); itr != Edges.end(); itr++) {
-			HullCones.push_back((*itr).Cone);
-			//PrintCPolyhedron((*itr).Cone);cin.get();
-		};
-		
-		if (HullIndex == 0) {
-			Conevector = HullCones;
-		} else {
-			Cones.push_back(HullCones);
-		};
-		HullIndex++;
-	};
+	if (string(argv[2]) == "refinement") {
+		vector<vector<C_Polyhedron> > Cones;
 
-	cout << "Conevector count: " << Conevector.size() << endl;
-	cout << "Cones count: " << Cones.size() << endl;
+		int HullIndex = 0;
 	
-	//Iterate through Cones
-	vector<vector<C_Polyhedron> >::iterator ConesItr;
-	int TreeLevel = 1;
-	for (ConesItr=Cones.begin(); ConesItr != Cones.end(); ConesItr++) {
-		vector<C_Polyhedron> TestCones = *ConesItr;
-		vector<C_Polyhedron> NewCones;
+		vector<Hull>::iterator it;
+		for (it=Hulls.begin(); it != Hulls.end(); it++) {
+			vector<Edge> Edges = (*it).Edges;
+			vector<C_Polyhedron> HullCones;
+			vector<Edge>::iterator itr;
+		
+			for (itr=Edges.begin(); itr != Edges.end(); itr++) {
+				HullCones.push_back((*itr).Cone);
+				//PrintCPolyhedron((*itr).Cone);cin.get();
+			};
+		
+			if (HullIndex == 0) {
+				ConeVector = HullCones;
+			} else {
+				Cones.push_back(HullCones);
+			};
+			HullIndex++;
+		};
+
+		cout << "ConeVector count: " << ConeVector.size() << endl;
+		cout << "Cones count: " << Cones.size() << endl;
+	
 		//Iterate through Cones
-		vector<C_Polyhedron>::iterator ConeItr;
-		for (ConeItr=Conevector.begin(); ConeItr != Conevector.end(); ConeItr++) {
-			//Iterate through TestCones
-			C_Polyhedron Cone = *ConeItr;
-			vector<C_Polyhedron>::iterator TestConesItr;
-			for (TestConesItr=TestCones.begin(); TestConesItr != TestCones.end(); TestConesItr++) {
-				C_Polyhedron NewCone = IntersectCones(*TestConesItr, Cone);
-				NewCones.push_back(NewCone);
+		vector<vector<C_Polyhedron> >::iterator ConesItr;
+		int TreeLevel = 1;
+		for (ConesItr=Cones.begin(); ConesItr != Cones.end(); ConesItr++) {
+			vector<C_Polyhedron> TestCones = *ConesItr;
+			vector<C_Polyhedron> NewCones;
+			//Iterate through Cones
+			vector<C_Polyhedron>::iterator ConeItr;
+			for (ConeItr=ConeVector.begin(); ConeItr != ConeVector.end(); ConeItr++) {
+				//Iterate through TestCones
+				C_Polyhedron Cone = *ConeItr;
+				vector<C_Polyhedron>::iterator TestConesItr;
+				for (TestConesItr=TestCones.begin(); TestConesItr != TestCones.end(); TestConesItr++) {
+					C_Polyhedron NewCone = IntersectCones(*TestConesItr, Cone);
+					//PrintPolyhedron(NewCone);
+					if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
+						NewCones.push_back(NewCone);
+					};
+				};
+			};
+			ConeVector = NewCones;
+			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level\n", TreeLevel, Cones.size(), ConeVector.size());
+			TreeLevel++;
+		};
+	}
+	else if (string(argv[2]) == "new") {
+	
+	
+	
+	};
+	cout << "Finished intersecting C_Polyhedrons." << endl << endl << endl;	
+	cout << argv[2] << endl;
+	vector<Generator> gv;
+	vector<C_Polyhedron>::iterator PolyItr;
+	for (PolyItr=ConeVector.begin(); PolyItr != ConeVector.end(); PolyItr++) {
+		Generator_System gs = (*PolyItr).minimized_generators();
+		for (Generator_System::const_iterator gsi = gs.begin(),
+		gs_end = gs.end(); gsi != gs_end; ++gsi) {
+			Generator gen = *gsi;
+			if (gen.is_point()) {
+				continue;
+			}
+			else if ( find(gv.begin(), gv.end(), gen) == gv.end() ) {
+				gv.push_back(gen);
+				cout << "Pretropism: " << gen << endl;
+				
+				vector<GMP_Integer> Pt = GeneratorToPoint(gen);
+				vector<Hull>::iterator HullItr;
+				for (HullItr=Hulls.begin(); HullItr != Hulls.end(); HullItr++) {
+					Hull MyHull = (*HullItr);
+					vector<vector<GMP_Integer> > TestPts = MyHull.Points;
+					vector<vector<GMP_Integer> > InForm = FindInitialForm(TestPts, Pt);
+					if (InForm.size() < 2) {
+						cout << "INTERNAL ERROR: Incorrect pretropism found" << endl;
+						PrintPoints(InForm);
+						cin.get();
+					};
+
+					vector<GMP_Integer> PtIndices;
+			//		cout << InForm.size() << endl;
+					
+	
+					vector<vector<GMP_Integer> >::iterator InFormIter;
+					for (InFormIter=InForm.begin(); InFormIter!=InForm.end(); InFormIter++) {
+						PtIndices.push_back(MyHull.PointToIndexMap[*InFormIter]);
+					}
+		//			PrintPoint(PtIndices);
+	//				PrintPoints(InForm);
+				//	cout << endl;
+				}
 			};
 		};
-		Conevector = NewCones;
-		printf("Finished level %d of tree with %d levels\n", TreeLevel, Cones.size());
-		TreeLevel++;
 	};
-	
-	cout << "Finished intersecting C_Polyhedrons." << endl << endl << endl;
-//	PrintCPolyhedrons(Conevector, false);
-	
+	cout << "Number of pretropisms found: " << gv.size() << endl;
 }
