@@ -5,10 +5,23 @@
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
+double elapsed_secs;
+
+double PrintTime() {
+	return elapsed_secs;
+}
 
 //------------------------------------------------------------------------------
 C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
+	
+  clock_t begin = clock();
 	Constraint_System cs;
+	if (ph1.contains(ph2)) {
+		return ph2;
+	} else if (ph2.contains(ph1)) {
+		return ph1;
+	};
+	
 	Constraint_System cs1 = ph1.minimized_constraints();
 	Constraint_System cs2 = ph2.minimized_constraints();
 //	cout << "START" << endl;
@@ -27,6 +40,12 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	
 //	PrintCPolyhedron(ph);
 //	cout << "END" << endl;
+
+
+
+  clock_t end = clock();
+  elapsed_secs += double(end - begin) / CLOCKS_PER_SEC;
+  
 	return ph;
 }
 
@@ -216,26 +235,6 @@ vector<Edge> FindEdges(Hull H) {
 
 		int FacetCount = 0;
 		vector<Facet>::iterator FacetIt;
-		
-/*		
-		Constraint_System cs;
-		for (FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
-			set<GMP_Integer> PtIndices = (*FacetIt).PointIndices;
-			bool Point1IsInFacet = PtIndices.find(Point1) != PtIndices.end();
-			bool Point2IsInFacet = PtIndices.find(Point2) != PtIndices.end();
-			if (Point1IsInFacet and Point2IsInFacet) {
-				FacetCount++;
-					cout << "CC" << endl;
-				Constraint_System ConeConstraints = (*FacetIt).ConeConstraints;
-				for (Constraint_System::const_iterator iii = ConeConstraints.begin(),
-				cs_end = ConeConstraints.end(); iii != cs_end; ++iii) {
-					cs.insert(*iii);
-					cout << "BBBB " << *iii << endl;
-				}
-			};
-		};
-*/
-
 
 		Generator_System gs;
 		for (FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
@@ -256,7 +255,7 @@ vector<Edge> FindEdges(Hull H) {
 		if (FacetCount >= Dim) {
 			Edge NewEdge;
 			set<GMP_Integer> PointIndices;
-			set<GMP_Integer> NeighborIndices;
+			set<int> NeighborIndices;
 			PointIndices.insert(Point1);
 			PointIndices.insert(Point2);
 			NewEdge.PointIndices = PointIndices;
@@ -276,27 +275,19 @@ vector<Edge> FindEdges(Hull H) {
 	cout << "Print Edges initialized" << endl;
 	
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
-	
-	int Edge1Index = 0;
-
-	vector<Edge>::iterator EdgeItr1;
-	for (EdgeItr1=Edges.begin(); EdgeItr1 != Edges.end(); EdgeItr1++) {
-		vector<Edge>::iterator EdgeItr2;
-		int Edge2Index = 0;
-		Edge Edge1 = *EdgeItr1;
-		
+	for (int Edge1Index = 0; Edge1Index != Edges.size(); Edge1Index++) {
+		Edge Edge1 = Edges[Edge1Index];
 		set<GMP_Integer>::iterator SetItr1=Edge1.PointIndices.begin();
 		GMP_Integer PtIndex1 = *SetItr1;
 		SetItr1++;
 		GMP_Integer PtIndex2 = *SetItr1;
-
-		for (EdgeItr2=Edges.begin(); EdgeItr2 != Edges.end(); EdgeItr2++) {
+		
+		for (int Edge2Index = 0; Edge2Index != Edges.size(); Edge2Index++) {
 			if (Edge1Index == Edge2Index) {
-				Edge2Index++;
 				continue;
 			};
-			Edge Edge2 = *EdgeItr2;
-
+			Edge Edge2 = Edges[Edge2Index];
+			
 			int IntersectionCount = 0;
 			for (std::set<GMP_Integer>::iterator SetItr2=Edge2.PointIndices.begin(); 
 			SetItr2!=Edge2.PointIndices.end(); ++SetItr2) {
@@ -304,19 +295,25 @@ vector<Edge> FindEdges(Hull H) {
 					IntersectionCount++;
 				}
 			}
-
-			//if the intersection is one, then the neighbors are edges.
 			if (IntersectionCount == 1) {
-				Edge1.NeighborIndices.insert(Edge2Index);
-				Edge2.NeighborIndices.insert(Edge1Index);
+				Edges[Edge1Index].NeighborIndices.insert(Edge2Index);
+				Edges[Edge2Index].NeighborIndices.insert(Edge1Index);
 			} else if (IntersectionCount > 1) {
 				cout << "Internal Error: Two edges intersect at more than one point" << endl;
+				cin.get();
 			}
-			Edge2Index++;
-		}
-		Edge1Index++;	
+		};
 	};
-	cout << "Print Edges neighbors found" << endl;
+	
+	vector<Edge>::iterator EdgeItr11;
+	for (EdgeItr11=Edges.begin(); EdgeItr11 != Edges.end(); EdgeItr11++) {
+		Edge MyEdge = *EdgeItr11;
+		cout << MyEdge.NeighborIndices.size() << endl;
+		//START HERE!!!!!! Check that neighbors are correct. There's a possibility that you screwed that up.
+		PrintPoint(MyEdge.NeighborIndices);
+		//cin.get();
+	};
+	cout << "Edges neighbors found" << endl;
 	return Edges;
 }
 
@@ -438,6 +435,16 @@ void PrintPoints(vector<vector<GMP_Integer> > Points) {
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
 		PrintPoint(*itr);
 	};
+}
+
+//------------------------------------------------------------------------------
+void PrintPoint(set<int> Point) {
+	set<int>::iterator it;
+	cout << "{ ";
+	for (it=Point.begin(); it != Point.end(); it++) {
+		cout << (*it) << " ";
+	}
+	cout << "}" << endl;
 }
 
 //------------------------------------------------------------------------------
