@@ -3,10 +3,14 @@
 #include <ctime>
 #include "prevariety_util.h"
 #include <algorithm>
+#include "tbb/tbb.h"
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 
+double ListAppendTime;
+double ContainmentTime;
+int ConeIntersectionCount;
 vector<vector<vector<GMP_Integer> > > CyclicN(int n, bool Reduced) {
 	vector<vector<vector<GMP_Integer> > > System;
 	int Length = n;
@@ -36,6 +40,86 @@ vector<vector<vector<GMP_Integer> > > CyclicN(int n, bool Reduced) {
 	return System;
 }
 
+//------------------------------------------------------------------------------
+vector<C_Polyhedron> TraverseEdgeSkeleton(C_Polyhedron NewCone, vector<vector<GMP_Integer> > Pts, map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap, vector<Edge> Edges) {
+
+	vector<C_Polyhedron> Result;
+	
+	//take a random vector from cone
+	vector<vector<GMP_Integer> > Rays = GeneratorSystemToPoints(NewCone.minimized_generators());
+	vector<GMP_Integer> RandomVector(Rays[0].size(),0);
+	for (int i = 0; i != Rays.size(); i++) {
+		vector<GMP_Integer> Ray = Rays[i];
+		for (int j = 0; j != Ray.size(); j++) {
+			RandomVector[j] += Ray[j];
+		};
+	};
+	
+	//take initial form using that vector.
+	vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
+	
+	set<GMP_Integer> InitialIndices;
+	for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
+		InitialFormItr != InitialForm.end(); InitialFormItr++)
+	{
+		InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
+	};
+	
+	// List of indices of edges to visit.
+	vector<int> EdgesToTest; 
+	for(int EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
+		if (IntersectSets(InitialIndices, Edges[EdgeIndex].PointIndices).size() > 0) {
+			EdgesToTest.push_back(EdgeIndex);
+		};
+	};
+	
+	// Explore edge skeleton
+	set<int> PretropGraphEdges;
+	set<int> NotPretropGraphEdges;
+	while(!EdgesToTest.empty()) {
+		int EdgeToTestIndex = EdgesToTest.back();
+		EdgesToTest.pop_back();
+		Edge EdgeToTest = Edges[EdgeToTestIndex];
+		clock_t ContainmentBegin = clock();
+		bool ConeDoesContain = EdgeToTest.Cone.contains(NewCone);
+		ContainmentTime += double(clock() - ContainmentBegin);
+
+		if (ConeDoesContain) {
+			Result.push_back(NewCone);
+			return Result;
+		};
+		C_Polyhedron TempCone = IntersectCones(EdgeToTest.Cone, NewCone);
+		ConeIntersectionCount++;
+
+		if (TempCone.affine_dimension() > 0) {
+			PretropGraphEdges.insert(EdgeToTestIndex);
+			
+			clock_t begin = clock();
+			if ( find(Result.begin(), Result.end(), TempCone) == Result.end() ) {
+				Result.push_back(TempCone);
+			};	
+			ListAppendTime += double(clock() - begin);
+
+			set<int>::iterator NeighborItr;
+			begin = clock();
+			for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
+				int Neighbor = *NeighborItr;
+				if ( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() ) {
+					if ( find(NotPretropGraphEdges.begin(), NotPretropGraphEdges.end(), Neighbor) == NotPretropGraphEdges.end() ) {
+						if ( find(EdgesToTest.begin(), EdgesToTest.end(), Neighbor) == EdgesToTest.end() ) {
+							EdgesToTest.push_back(Neighbor);
+						};
+					};
+				};
+			};
+		} else {
+			NotPretropGraphEdges.insert(EdgeToTestIndex);
+		};
+	};
+	return Result;
+}
+
+//------------------------------------------------------------------------------				
 int main(int argc, char* argv[]) {
 	if (argc != 3) {
 		cout << "Internal error: expected two arguments." << endl;
@@ -54,8 +138,6 @@ int main(int argc, char* argv[]) {
 		Hulls.push_back(NewHull(*CycIt));
 		TestIndex++;
 	}
-	double ListAppendTime;
-	double ContainmentTime;
 	vector<C_Polyhedron> ConeVector;	
 	
 	if (string(argv[2]) == "refinement") {
@@ -86,7 +168,6 @@ int main(int argc, char* argv[]) {
 		//Iterate through Cones
 		vector<vector<C_Polyhedron> >::iterator ConesItr;
 		int TreeLevel = 1;
-		int IntersectionCount = 0;
 		for (ConesItr=Cones.begin(); ConesItr != Cones.end(); ConesItr++) {
 			vector<C_Polyhedron> TestCones = *ConesItr;
 			vector<C_Polyhedron> NewCones;
@@ -98,19 +179,18 @@ int main(int argc, char* argv[]) {
 				vector<C_Polyhedron>::iterator TestConesItr;
 				for (TestConesItr=TestCones.begin(); TestConesItr != TestCones.end(); TestConesItr++) {
 					C_Polyhedron NewCone = IntersectCones(*TestConesItr, Cone);
-					IntersectionCount++;
+					ConeIntersectionCount++;
 					if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
 						NewCones.push_back(NewCone);
 					};
 				};
 			};
 			ConeVector = NewCones;
-			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", TreeLevel, Cones.size(), ConeVector.size(),IntersectionCount);
+			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", TreeLevel, Cones.size(), ConeVector.size(),ConeIntersectionCount);
 			TreeLevel++;
 		};
 	}
 	else if (string(argv[2]) == "new") {
-		int ConeIntersectionCount = 0;
 		for (int HullIndex = 0; HullIndex != Hulls.size(); HullIndex++) {
 			Hull H = Hulls[HullIndex];
 			vector<Edge> Edges = H.Edges;
@@ -130,82 +210,17 @@ int main(int argc, char* argv[]) {
 				for (ConeIterator=ConeVector.begin();ConeIterator!=ConeVector.end();ConeIterator++) {
 
 					C_Polyhedron NewCone = *ConeIterator;
-
-					//take a random vector from cone
-					vector<vector<GMP_Integer> > Rays = GeneratorSystemToPoints(NewCone.minimized_generators());
-					vector<GMP_Integer> RandomVector(Rays[0].size(),0);
-					for (int i = 0; i != Rays.size(); i++) {
-						vector<GMP_Integer> Ray = Rays[i];
-						for (int j = 0; j != Ray.size(); j++) {
-							RandomVector[j] += Ray[j];
-						};
-					};
 					
-					//take initial form using that vector.
-					vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
-					
-					set<GMP_Integer> InitialIndices;
-					for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
-						InitialFormItr != InitialForm.end(); InitialFormItr++)
-					{
-						InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
-					};
-					
-					// List of indices of edges to visit.
-					vector<int> EdgesToTest; 
-					for(int EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
-						if (IntersectSets(InitialIndices, Edges[EdgeIndex].PointIndices).size() > 0) {
-							EdgesToTest.push_back(EdgeIndex);
-						};
-					};
-					
-					// Explore edge skeleton
-					set<int> PretropGraphEdges;
-					set<int> NotPretropGraphEdges;
-					while(!EdgesToTest.empty()) {
-						int EdgeToTestIndex = EdgesToTest.back();
-						EdgesToTest.pop_back();
-						Edge EdgeToTest = Edges[EdgeToTestIndex];
-						clock_t ContainmentBegin = clock();
-						bool ConeDoesContain = EdgeToTest.Cone.contains(NewCone);
-						ContainmentTime += double(clock() - ContainmentBegin);
+					vector<C_Polyhedron> ConesToAdd = TraverseEdgeSkeleton(NewCone, Pts, PointToIndexMap, Edges);
 
-						if (ConeDoesContain) {
-							clock_t begin = clock();
-							if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
-								NewCones.push_back(NewCone);
-							};
-							ListAppendTime += double(clock() - begin);
-							break;
+					for(int i = 0; i != ConesToAdd.size(); i++) {
+						C_Polyhedron ConeToAdd = ConesToAdd[i];
+						clock_t begin = clock();
+						if ( find(NewCones.begin(), NewCones.end(), ConeToAdd) == NewCones.end() ) {
+							NewCones.push_back(ConeToAdd);
 						};
-						C_Polyhedron TempCone = IntersectCones(EdgeToTest.Cone, NewCone);
-						ConeIntersectionCount++;
-
-						if (TempCone.affine_dimension() > 0) {
-							PretropGraphEdges.insert(EdgeToTestIndex);
-							
-							clock_t begin = clock();
-							if ( find(NewCones.begin(), NewCones.end(), TempCone) == NewCones.end() ) {
-								NewCones.push_back(TempCone);
-							};	
-							ListAppendTime += double(clock() - begin);
-
-							set<int>::iterator NeighborItr;
-							begin = clock();
-							for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
-								int Neighbor = *NeighborItr;
-								if ( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() ) {
-									if ( find(NotPretropGraphEdges.begin(), NotPretropGraphEdges.end(), Neighbor) == NotPretropGraphEdges.end() ) {
-										if ( find(EdgesToTest.begin(), EdgesToTest.end(), Neighbor) == EdgesToTest.end() ) {
-											EdgesToTest.push_back(Neighbor);
-										};
-									};
-								};
-							};
-						} else {
-							NotPretropGraphEdges.insert(EdgeToTestIndex);
-						};
-					};
+						ListAppendTime += clock() - begin;
+					}
 				};
 				ConeVector = NewCones;
 			};
