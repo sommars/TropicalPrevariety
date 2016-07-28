@@ -5,10 +5,11 @@
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
-double elapsed_secs;
+double IntersectionTime;
 
-double PrintTime() {
-	return elapsed_secs;
+//------------------------------------------------------------------------------
+double GetPolyhedralIntersectionTime() {
+	return IntersectionTime;
 }
 
 //------------------------------------------------------------------------------
@@ -16,17 +17,9 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	
   clock_t begin = clock();
 	Constraint_System cs;
-	if (ph1.contains(ph2)) {
-		return ph2;
-	} else if (ph2.contains(ph1)) {
-		return ph1;
-	};
 	
 	Constraint_System cs1 = ph1.minimized_constraints();
 	Constraint_System cs2 = ph2.minimized_constraints();
-//	cout << "START" << endl;
-//	PrintCPolyhedron(ph1);
-//	PrintCPolyhedron(ph2);
 	for (Constraint_System::const_iterator i = cs1.begin(),
 	cs1_end = cs1.end(); i != cs1_end; ++i) {
 		cs.insert(*i);
@@ -37,15 +30,8 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	}
 	C_Polyhedron ph(cs);
 	ph.minimized_constraints();
-	
-//	PrintCPolyhedron(ph);
-//	cout << "END" << endl;
 
-
-
-  clock_t end = clock();
-  elapsed_secs += double(end - begin) / CLOCKS_PER_SEC;
-  
+	IntersectionTime += double(clock() - begin);
 	return ph;
 }
 
@@ -104,65 +90,45 @@ vector<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
 //------------------------------------------------------------------------------
 Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	Hull H;
-	// Find the C_Polyhedron
+
 	H.CPolyhedron = FindCPolyhedron(Points);
-	
-	Constraint_System csss = H.CPolyhedron.minimized_constraints();
-	cout << "CS SYSTEM: " << csss << endl;
-	
 	H.Points = GeneratorSystemToPoints(H.CPolyhedron.minimized_generators());
-	cout << "Number of pts: " << H.Points.size() << endl;
-
-	// Create point/index maps.
-	map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
-	map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
-	int PtIndex = 0;
-	vector<vector<GMP_Integer> >::iterator itr;
-	for (itr=H.Points.begin(); itr != H.Points.end(); itr++) {
-		vector<GMP_Integer>Point=*itr;
-
-		PointToIndexMap[*itr]=PtIndex;
-		IndexToPointMap[PtIndex]=*itr;
-		PtIndex++;
-	}
-	H.PointToIndexMap = PointToIndexMap;
-	H.IndexToPointMap = IndexToPointMap;
+	H.Dimension = H.CPolyhedron.affine_dimension();
 	
-	// Find the facets.
-	H.Facets = FindFacets(H);
-	cout << "Number of facets: " << H.Facets.size() << endl;
-
-
-	// TODO: THIS MIGHT BE WRONG! Consider removing.	
 	// Find the lineality space.
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
-	Generator_System gs3;
+	Generator_System gs;
 	for (Constraint_System::const_iterator i = cs.begin(),
 	cs_end = cs.end(); i != cs_end; ++i) {
 		Constraint c = *i;
 		if (c.is_equality()) {
-			Linear_Expression ee1;
-			Linear_Expression ee2;
+			Linear_Expression LE;
 			for (dimension_type iii = c.space_dimension(); iii-- > 0; ) {
-				ee1 += c.coefficient(Variable(iii)) * Variable(iii);
-				ee2 += -1 * c.coefficient(Variable(iii)) * Variable(iii);
+				LE += c.coefficient(Variable(iii)) * Variable(iii);
 			};
-			gs3.insert(ray(ee1));
-			gs3.insert(ray(ee2));
-			//Something is still wrong here. The cones we are getting are different...somehow...
-			//cout << gs3 << endl;
-			//cin.get();
+			gs.insert(line(LE));
 		};
 	};
-	H.Lines = gs3;
-	cout << "LinealitySpace found" << endl;
-	// Find the edges.
-	H.Edges = FindEdges(H);
+	H.LinealitySpace = gs;
 	
-	cout << "Edges Found!" << endl;
-	cout << "Number of edges: " << H.Edges.size() << endl;
+	// Create point/index maps.
+	map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
+	map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
+	for (int i = 0; i != H.Points.size(); i++) {
+		vector<GMP_Integer> Point = H.Points[i];
+		PointToIndexMap[Point]=i;
+		IndexToPointMap[i]=Point;
+	};
+	H.PointToIndexMap = PointToIndexMap;
+	H.IndexToPointMap = IndexToPointMap;
 
-	cout << "Facet finished" << endl << endl << endl;
+	H.Facets = FindFacets(H);
+	H.Edges = FindEdges(H);
+	cout << "Convex hull------------------------" << endl;
+	PrintPoints(H.Points);
+	cout << "Dimension: " << H.Dimension << endl;
+	cout << "Number of edges: " << H.Edges.size() << endl;
+	cout << "Number of facets: " << H.Facets.size() << endl << endl;
 	return H;
 }
 
@@ -222,7 +188,7 @@ vector<Edge> FindEdges(Hull H) {
 
 	//The number of facets we want is equal to the dimension of the ambient space minus the number of equations -1
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
-	int Dim = FindCSDim(cs) - 1;
+	int Dim = H.CPolyhedron.affine_dimension() - 1;
 
 	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=CandidateEdges.begin(); itr != CandidateEdges.end(); itr++) {
@@ -262,7 +228,7 @@ vector<Edge> FindEdges(Hull H) {
 			NewEdge.NeighborIndices = NeighborIndices;
 
 			// Need to add all of the generators of the lineality space to the cones.
-			Generator_System gs2 = H.Lines;
+			Generator_System gs2 = H.LinealitySpace;
 			for (Generator_System::const_iterator i = gs2.begin(),
 			cs_end = gs2.end(); i != cs_end; ++i) {
 				gs.insert(*i);
@@ -271,8 +237,6 @@ vector<Edge> FindEdges(Hull H) {
 			Edges.push_back(NewEdge);
 		}
 	};
-	
-	cout << "Print Edges initialized" << endl;
 	
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
 	for (int Edge1Index = 0; Edge1Index != Edges.size(); Edge1Index++) {
@@ -304,22 +268,12 @@ vector<Edge> FindEdges(Hull H) {
 			}
 		};
 	};
-	
-	vector<Edge>::iterator EdgeItr11;
-	for (EdgeItr11=Edges.begin(); EdgeItr11 != Edges.end(); EdgeItr11++) {
-		Edge MyEdge = *EdgeItr11;
-		cout << MyEdge.NeighborIndices.size() << endl;
-		//START HERE!!!!!! Check that neighbors are correct. There's a possibility that you screwed that up.
-		PrintPoint(MyEdge.NeighborIndices);
-		//cin.get();
-	};
-	cout << "Edges neighbors found" << endl;
+
 	return Edges;
 }
 
 //------------------------------------------------------------------------------
 vector<vector<GMP_Integer> > FindCandidateEdges(Hull H) {
-
 	vector<vector<GMP_Integer> > CandidateEdges;
 	int n = H.Points.size();
 	vector<int> d(n);
@@ -327,11 +281,10 @@ vector<vector<GMP_Integer> > FindCandidateEdges(Hull H) {
 		d[i] = i;
 	}
 	do {
-		vector<GMP_Integer> CandidateEdgeIndices;
-		for (int i = 0; i < 2; i++) {
-			CandidateEdgeIndices.push_back(d[i]);
-		}
 		if (d[0] < d[1]) {
+			vector<GMP_Integer> CandidateEdgeIndices;
+			CandidateEdgeIndices.push_back(d[0]);
+			CandidateEdgeIndices.push_back(d[1]);
 			CandidateEdges.push_back(CandidateEdgeIndices);
 		};
 		reverse(d.begin()+2, d.end());
@@ -346,46 +299,41 @@ GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
 	*/
 	if (V1.size() != V2.size()) {
 		cout << "Internal Error: InnerProduct with different sizes" << endl;
+		cin.get();
 	};
 	GMP_Integer Result = 0;
-	vector<GMP_Integer>::iterator it1;
-	vector<GMP_Integer>::iterator it2;
-	it2 = V2.begin();
-	for (it1=V1.begin(); it1 != V1.end(); it1++) {
-		Result = Result + (*it1) * (*it2);
-		it2++;
+	for (int i = 0; i != V1.size(); i++) {
+		Result += V1[i] * V2[i];
 	}
 	return Result;
 }
 
 //------------------------------------------------------------------------------
 vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > Points, vector<GMP_Integer> Vector) {
-	/* 
+	/*
 		Computes the initial form of a vector and a set of points.
 	*/
 	if (Points.size() == 0) {
 		return Points;
 	};
-	vector<vector<GMP_Integer> > IF;
-	vector<vector<GMP_Integer> >::iterator itr;
+	vector<vector<GMP_Integer> > InitialForm;
 
-	itr=Points.begin();
-	IF.push_back(*itr);
-	GMP_Integer MinimalIP = InnerProduct(Vector, *itr);
-	itr++;
+	InitialForm.push_back(Points[0]);
+	GMP_Integer MinimalIP = InnerProduct(Vector, Points[0]);
 
-	for (itr; itr != Points.end(); itr++) {
-		GMP_Integer IP = InnerProduct(Vector, *itr);
+	for (int i = 1; i != Points.size(); i++) {
+		vector<GMP_Integer> Point = Points[i];
+		GMP_Integer IP = InnerProduct(Vector, Point);
 		if (MinimalIP > IP) {
 			MinimalIP = IP;
-			IF.clear();
-			IF.push_back(*itr);
+			InitialForm.clear();
+			InitialForm.push_back(Point);
 		} else if (IP == MinimalIP) {
-			IF.push_back(*itr);
-		}
-	}
-	
-	return IF;
+			InitialForm.push_back(Point);
+		};
+	};
+
+	return InitialForm;
 }
 
 //------------------------------------------------------------------------------
@@ -393,17 +341,13 @@ C_Polyhedron FindCPolyhedron(vector<vector<GMP_Integer> > Points) {
 	Generator_System gs;
 	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
-		vector<GMP_Integer>Point=*itr;
-		vector<GMP_Integer>::iterator it;
+		vector<GMP_Integer> Point = *itr;
 		Linear_Expression LE;
-		int VarIndex = 0;
-		PrintPoint(Point);
-		for (it=Point.begin(); it != Point.end(); it++) {
-			LE = LE + Variable(VarIndex) * (*it);
-			VarIndex++;
-		}
+		for (int i = 0; i != Point.size(); i++) {
+			LE = LE + Variable(i) * (Point[i]);
+		};
 		gs.insert(point(LE));
-	}
+	};
 	C_Polyhedron ph = C_Polyhedron(gs);
 	
 	return ph;
@@ -448,61 +392,9 @@ void PrintPoint(set<int> Point) {
 }
 
 //------------------------------------------------------------------------------
-void PrintFacet(Facet F){
-	cout << "FacetPts below"<< endl;
-	PrintPoints(F.Points);
-	cout << endl;
-	cout << "Constraint: " << F.FacetConstraint << endl;
-}
-
-//------------------------------------------------------------------------------
-void PrintFacets(vector<Facet> Facets) {
-	vector<Facet>::iterator it;
-	cout << "Printing Facets-------------------------------" << endl;
-	for (it=Facets.begin(); it != Facets.end(); it ++) {
-		cout << "NEW FACET" << endl;
-	};
-}
-
-//------------------------------------------------------------------------------
-int FindCSDim(Constraint_System cs) {
-	int EquationCount = 0;
-	for (Constraint_System::const_iterator i = cs.begin(),
-	cs_end = cs.end(); i != cs_end; ++i) {
-		if ((*i).is_equality()) {
-			EquationCount++;
-		};
-	};
-	cout << "DIM! " << cs.space_dimension() - EquationCount << endl;
-	return cs.space_dimension() - EquationCount;
-}
-
-//------------------------------------------------------------------------------
 void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim) {
-	Constraint_System cs = ph.minimized_constraints();
-
-	// Consider getting rid of FindCSDim.
-	cout << "PHDIM! " << ph.affine_dimension() << endl;/*
-	int Dim = FindCSDim(cs);
-	if ((PrintIf0Dim == false) and (Dim == 0)) {
-		return;
-	};
-	cout << "Dimension: " << Dim << endl;
-	cout << "Constraints for polyhedron are below---------------" << endl;
-	for (Constraint_System::const_iterator i = cs.begin(),
-	cs_end = cs.end(); i != cs_end; ++i) {
-		cout << "Constraint: " << *i << endl;
-	}
-	Generator_System gs = ph.minimized_generators();
-	cout << "Generators for polyhedron are below----------------" << endl;
-	for (Generator_System::const_iterator i = gs.begin(),
-	gs_end = gs.end(); i != gs_end; ++i) {
-		cout << "Generator: " << *i << endl;
-	}*/
-	cout << ph.minimized_generators();
-	//PrintPoints(GeneratorSystemToPoints(ph.minimized_generators()));
-	
-	cout << endl << endl;
+	cout << "C_Polyhedron dimension:" << ph.affine_dimension() << endl;
+	cout << "Generators: " << ph.minimized_generators() << endl;
 }
 
 //------------------------------------------------------------------------------
