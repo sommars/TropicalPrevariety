@@ -10,12 +10,12 @@ class Edge {
 	public:
 		C_Polyhedron Cone;
 		set<GMP_Integer> PointIndices;
-		set<GMP_Integer> NeighborIndices;
+		set<int> NeighborIndices;
 };
 
 class Facet {
 	public:
-		vector<vector<GMP_Integer> > Points; //this should be a set
+		vector<vector<GMP_Integer> > Points;
 		set<GMP_Integer> PointIndices;
 		Constraint FacetConstraint;
 		Constraint_System ConeConstraints;
@@ -23,15 +23,18 @@ class Facet {
 
 class Hull {
 	public:
-		vector<vector<GMP_Integer> > Points; //this should be a set
+		vector<vector<GMP_Integer> > Points;
 		map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
 		map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
 		vector<Edge> Edges;
 		vector<Facet> Facets;
 		C_Polyhedron CPolyhedron;
-		Constraint_System LinealitySpace;
-		Generator_System Lines;
+		Generator_System LinealitySpace;
+		int Dimension;
 };
+
+//------------------------------------------------------------------------------
+double GetPolyhedralIntersectionTime();
 
 //------------------------------------------------------------------------------
 C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2);
@@ -76,13 +79,7 @@ void PrintPoint(vector<GMP_Integer> Point);
 void PrintPoints(vector<vector<GMP_Integer> > Points);
 
 //------------------------------------------------------------------------------
-void PrintFacet(Facet F);
-
-//------------------------------------------------------------------------------
-void PrintFacets(vector<Facet> Facets);
-
-//------------------------------------------------------------------------------
-int FindCSDim(Constraint_System cs);
+void PrintPoint(set<int> Point);
 
 //------------------------------------------------------------------------------
 void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim = true);
