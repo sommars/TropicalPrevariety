@@ -4,13 +4,22 @@
 #include "prevariety_util.h"
 #include <algorithm>
 #include "tbb/tbb.h"
+#include "tbb/blocked_range.h"
+#include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_init.h"
+
 using namespace std;
 using namespace Parma_Polyhedra_Library;
+using namespace tbb;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
+
+typedef vector<C_Polyhedron> ConeList;
 
 double ListAppendTime;
 double ContainmentTime;
 int ConeIntersectionCount;
+vector<C_Polyhedron> ConeVector;
+
 vector<vector<vector<GMP_Integer> > > CyclicN(int n, bool Reduced) {
 	vector<vector<vector<GMP_Integer> > > System;
 	int Length = n;
@@ -40,83 +49,109 @@ vector<vector<vector<GMP_Integer> > > CyclicN(int n, bool Reduced) {
 	return System;
 }
 
+
+/*class IntersectTest {
+	NewCone C_Polyhedron;
+	Pts vector<vector<GMP_Integer> >;
+	PointToIndexMap map<vector<GMP_Integer>,GMP_Integer>;
+	Edges vector<Edge>;
+	void operator() ( const blocked_range<size_t>& r ) const {
+	
+	
+	}
+}*/
+
 //------------------------------------------------------------------------------
-vector<C_Polyhedron> TraverseEdgeSkeleton(C_Polyhedron NewCone, vector<vector<GMP_Integer> > Pts, map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap, vector<Edge> Edges) {
+vector<vector<C_Polyhedron> > IntersectCones(Hull H, vector<C_Polyhedron> TestCones) {
+	vector<vector<GMP_Integer> > Pts = H.Points;
+	map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap = H.PointToIndexMap;
+	vector<Edge> Edges = H.Edges;
+	
+	vector<vector<C_Polyhedron> > Result;
 
-	vector<C_Polyhedron> Result;
-	
-	//take a random vector from cone
-	vector<vector<GMP_Integer> > Rays = GeneratorSystemToPoints(NewCone.minimized_generators());
-	vector<GMP_Integer> RandomVector(Rays[0].size(),0);
-	for (int i = 0; i != Rays.size(); i++) {
-		vector<GMP_Integer> Ray = Rays[i];
-		for (int j = 0; j != Ray.size(); j++) {
-			RandomVector[j] += Ray[j];
-		};
-	};
-	
-	//take initial form using that vector.
-	vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
-	
-	set<GMP_Integer> InitialIndices;
-	for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
-		InitialFormItr != InitialForm.end(); InitialFormItr++)
-	{
-		InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
-	};
-	
-	// List of indices of edges to visit.
-	vector<int> EdgesToTest; 
-	for(int EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
-		if (IntersectSets(InitialIndices, Edges[EdgeIndex].PointIndices).size() > 0) {
-			EdgesToTest.push_back(EdgeIndex);
-		};
-	};
-	
-	// Explore edge skeleton
-	set<int> PretropGraphEdges;
-	set<int> NotPretropGraphEdges;
-	while(!EdgesToTest.empty()) {
-		int EdgeToTestIndex = EdgesToTest.back();
-		EdgesToTest.pop_back();
-		Edge EdgeToTest = Edges[EdgeToTestIndex];
-		clock_t ContainmentBegin = clock();
-		bool ConeDoesContain = EdgeToTest.Cone.contains(NewCone);
-		ContainmentTime += double(clock() - ContainmentBegin);
+	for (int ConeIndex = 0; ConeIndex != TestCones.size(); ConeIndex++) {
 
-		if (ConeDoesContain) {
-			Result.push_back(NewCone);
-			return Result;
+		C_Polyhedron NewCone = TestCones[ConeIndex];
+		
+		//take a random vector from cone
+		vector<vector<GMP_Integer> > Rays = GeneratorSystemToPoints(NewCone.minimized_generators());
+		vector<GMP_Integer> RandomVector(Rays[0].size(),0);
+		for (int i = 0; i != Rays.size(); i++) {
+			vector<GMP_Integer> Ray = Rays[i];
+			for (int j = 0; j != Ray.size(); j++) {
+				RandomVector[j] += Ray[j];
+			};
 		};
-		C_Polyhedron TempCone = IntersectCones(EdgeToTest.Cone, NewCone);
-		ConeIntersectionCount++;
+	
+		//take initial form using that vector.
+		vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
+	
+		set<GMP_Integer> InitialIndices;
+		for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
+			InitialFormItr != InitialForm.end(); InitialFormItr++)
+		{
+			InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
+		};
+	
+		// List of indices of edges to visit.
+		vector<int> EdgesToTest; 
+		for(int EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
+			if (SetsDoIntersect(InitialIndices, Edges[EdgeIndex].PointIndices)) {
+				EdgesToTest.push_back(EdgeIndex);
+			};
+		};
+		vector<C_Polyhedron> NewCones;
+		// Explore edge skeleton
+		set<int> PretropGraphEdges;
+		set<int> NotPretropGraphEdges;
+		while(!EdgesToTest.empty()) {
+			int EdgeToTestIndex = EdgesToTest.back();
+			EdgesToTest.pop_back();
+			Edge EdgeToTest = Edges[EdgeToTestIndex];
+			clock_t ContainmentBegin = clock();
+			bool ConeDoesContain = EdgeToTest.Cone.contains(NewCone);
+			ContainmentTime += double(clock() - ContainmentBegin);
 
-		if (TempCone.affine_dimension() > 0) {
-			PretropGraphEdges.insert(EdgeToTestIndex);
+			if (ConeDoesContain) {
+				NewCones.push_back(NewCone);
+				break;
+			};
+			C_Polyhedron TempCone = IntersectCones(EdgeToTest.Cone, NewCone);
+			ConeIntersectionCount++;
+
+			if (TempCone.affine_dimension() > 0) {
+				PretropGraphEdges.insert(EdgeToTestIndex);
 			
-			clock_t begin = clock();
-			if ( find(Result.begin(), Result.end(), TempCone) == Result.end() ) {
-				Result.push_back(TempCone);
-			};	
-			ListAppendTime += double(clock() - begin);
+				clock_t begin = clock();
+				if ( find(NewCones.begin(), NewCones.end(), TempCone) == NewCones.end() ) {
+					NewCones.push_back(TempCone);
+				};	
+				ListAppendTime += double(clock() - begin);
 
-			set<int>::iterator NeighborItr;
-			begin = clock();
-			for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
-				int Neighbor = *NeighborItr;
-				if ( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() ) {
-					if ( find(NotPretropGraphEdges.begin(), NotPretropGraphEdges.end(), Neighbor) == NotPretropGraphEdges.end() ) {
-						if ( find(EdgesToTest.begin(), EdgesToTest.end(), Neighbor) == EdgesToTest.end() ) {
-							EdgesToTest.push_back(Neighbor);
+				set<int>::iterator NeighborItr;
+				begin = clock();
+				for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
+					int Neighbor = *NeighborItr;
+					if ( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() ) {
+						if ( find(NotPretropGraphEdges.begin(), NotPretropGraphEdges.end(), Neighbor) == NotPretropGraphEdges.end() ) {
+							if ( find(EdgesToTest.begin(), EdgesToTest.end(), Neighbor) == EdgesToTest.end() ) {
+								EdgesToTest.push_back(Neighbor);
+							};
 						};
 					};
 				};
+			} else {
+				NotPretropGraphEdges.insert(EdgeToTestIndex);
 			};
-		} else {
-			NotPretropGraphEdges.insert(EdgeToTestIndex);
 		};
+		Result.push_back(NewCones);
 	};
 	return Result;
+}
+
+//------------------------------------------------------------------------------				
+bool HullSort(Hull a, Hull b) {
+    return a.Dimension > b.Dimension;
 }
 
 //------------------------------------------------------------------------------				
@@ -132,13 +167,16 @@ int main(int argc, char* argv[]) {
 	if (Reduced == true) {
 		n = n - 1;
 	};
+	
 	vector<vector<vector<GMP_Integer> > >::iterator CycIt;
 	int TestIndex = 0;
 	for (CycIt=Cyc4.begin(); CycIt != Cyc4.end(); CycIt++) {
 		Hulls.push_back(NewHull(*CycIt));
 		TestIndex++;
 	}
-	vector<C_Polyhedron> ConeVector;	
+	
+
+	//sort( Hulls.begin(), Hulls.end(), HullSort);
 	
 	if (string(argv[2]) == "refinement") {
 		// Start by initializing the objects.
@@ -207,14 +245,15 @@ int main(int argc, char* argv[]) {
 			} else {
 				vector<C_Polyhedron> NewCones;
 				vector<C_Polyhedron>::iterator ConeIterator;
-				for (ConeIterator=ConeVector.begin();ConeIterator!=ConeVector.end();ConeIterator++) {
+				
 
-					C_Polyhedron NewCone = *ConeIterator;
-					
-					vector<C_Polyhedron> ConesToAdd = TraverseEdgeSkeleton(NewCone, Pts, PointToIndexMap, Edges);
 
-					for(int i = 0; i != ConesToAdd.size(); i++) {
-						C_Polyhedron ConeToAdd = ConesToAdd[i];
+				vector<vector<C_Polyhedron> >Arr;
+				Arr = IntersectCones(H,ConeVector);
+				for(int i = 0; i != ConeVector.size(); i++) {
+					vector<C_Polyhedron> ConesToAdd = Arr[i];
+					for(int j = 0; j != ConesToAdd.size(); j++) {
+						C_Polyhedron ConeToAdd = ConesToAdd[j];
 						clock_t begin = clock();
 						if ( find(NewCones.begin(), NewCones.end(), ConeToAdd) == NewCones.end() ) {
 							NewCones.push_back(ConeToAdd);
@@ -222,6 +261,17 @@ int main(int argc, char* argv[]) {
 						ListAppendTime += clock() - begin;
 					}
 				};
+				vector<Constraint> Constraints;
+				for(int i = 0; i != NewCones.size(); i++){
+					Constraint_System cstest = NewCones[i].minimized_constraints();
+					for (Constraint_System::const_iterator it = cstest.begin(),
+					cs_end = cstest.end(); it != cs_end; ++it) {
+						if ( find(Constraints.begin(), Constraints.end(), *it) == Constraints.end() ) {
+							Constraints.push_back(*it);
+						};
+					};
+				};
+				cout << "ConstraintCount: " << Constraints.size() << endl;
 				ConeVector = NewCones;
 			};
 			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", HullIndex, Hulls.size(), ConeVector.size(),ConeIntersectionCount);
