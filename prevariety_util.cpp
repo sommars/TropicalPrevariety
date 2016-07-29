@@ -22,14 +22,9 @@ C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
 	Constraint_System cs2 = ph2.minimized_constraints();
 	for (Constraint_System::const_iterator i = cs1.begin(),
 	cs1_end = cs1.end(); i != cs1_end; ++i) {
-		cs.insert(*i);
+		cs2.insert(*i);
 	}
-	for (Constraint_System::const_iterator i = cs2.begin(),
-	cs2_end = cs2.end(); i != cs2_end; ++i) {
-		cs.insert(*i);
-	}
-	C_Polyhedron ph(cs);
-	ph.minimized_constraints();
+	C_Polyhedron ph(cs2);
 
 	IntersectionTime += double(clock() - begin);
 	return ph;
@@ -46,33 +41,13 @@ vector<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
 }
 
 //------------------------------------------------------------------------------
-vector<GMP_Integer> ParseFinalOutput(Generator g) { //page 251
-	vector<GMP_Integer> Result;
-	bool reverse = false;
-	
-	for (int i = 0; i < g.space_dimension(); i++) {
-		if (g.coefficient(Variable(i)) != 0) {
-			if (g.coefficient(Variable(i)) < 0){
-				reverse = true;
-			};
-			break;
-		};
-	}	
-	for (int i = 0; i < g.space_dimension(); i++) {
-		Result.push_back((g).coefficient(Variable(i)));
-	}
-
-	return Result;
-}
-
-//------------------------------------------------------------------------------
 vector<vector<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
 	vector<vector<GMP_Integer> > Result;
-
 	for (Generator_System::const_iterator i = gs.begin(),
 	gs_end = gs.end(); i != gs_end; ++i) {
 		Result.push_back(GeneratorToPoint(*i));
 	}
+	
 	return Result;
 }
 
@@ -82,8 +57,7 @@ vector<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
 	for (int i = 0; i < c.space_dimension(); i++) {
 		Result.push_back((c).coefficient(Variable(i)));
 	}
-	//Note: This is commented out for the sake of FindFacets
-	//Result.push_back(c.inhomogeneous_term());
+
 	return Result;
 }
 
@@ -97,7 +71,6 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	
 	// Find the lineality space.
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
-	Generator_System gs;
 	for (Constraint_System::const_iterator i = cs.begin(),
 	cs_end = cs.end(); i != cs_end; ++i) {
 		Constraint c = *i;
@@ -106,21 +79,15 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 			for (dimension_type iii = c.space_dimension(); iii-- > 0; ) {
 				LE += c.coefficient(Variable(iii)) * Variable(iii);
 			};
-			gs.insert(line(LE));
+			H.LinealitySpace.insert(line(LE));
 		};
 	};
-	H.LinealitySpace = gs;
 	
-	// Create point/index maps.
-	map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
-	map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
+	// Create PointToIndexMap
 	for (int i = 0; i != H.Points.size(); i++) {
 		vector<GMP_Integer> Point = H.Points[i];
-		PointToIndexMap[Point]=i;
-		IndexToPointMap[i]=Point;
+		H.PointToIndexMap[Point]=i;
 	};
-	H.PointToIndexMap = PointToIndexMap;
-	H.IndexToPointMap = IndexToPointMap;
 
 	H.Facets = FindFacets(H);
 	H.Edges = FindEdges(H);
@@ -143,38 +110,31 @@ vector<Facet> FindFacets(Hull H) {
 	
 	for (Constraint_System::const_iterator i = cs.begin(),
 	cs_end = cs.end(); i != cs_end; ++i) {
-		if ((*i).is_inequality()) {
-			vector<GMP_Integer> Pt = ConstraintToPoint(*i);
-			vector<vector<GMP_Integer> > FacetPts = FindInitialForm(Points, Pt);
-			Facet F;
-			F.Points = FacetPts;
-			F.FacetConstraint = *i;
-			Generator_System gs;
-			vector<GMP_Integer>::iterator it;
-			Linear_Expression LE1;
-			Linear_Expression LE2;
-			int VarIndex = 0;
-			for (it=Pt.begin(); it != Pt.end(); it++) {
-				LE1 = LE1 + Variable(VarIndex) * (*it);
-				LE2 = LE2 + Variable(VarIndex) * 0;
-				VarIndex++;
-			};
-			gs.insert(ray(LE1));
-			gs.insert(point(LE2));
-			C_Polyhedron CPoly = C_Polyhedron(gs);
-			
-			F.ConeConstraints = CPoly.minimized_constraints();
-			
-			set<GMP_Integer> PointIndices;
-			
-			vector<vector<GMP_Integer> >::iterator itr;
-			
-			for (itr=FacetPts.begin(); itr != FacetPts.end(); itr++) {
-				PointIndices.insert(H.PointToIndexMap[*itr]);
-			};
-			F.PointIndices = PointIndices;
-			Facets.push_back(F);
+		if (!(*i).is_inequality()) {
+			continue;
 		};
+		vector<GMP_Integer> Pt = ConstraintToPoint(*i);
+		vector<vector<GMP_Integer> > FacetPts = FindInitialForm(Points, Pt);
+		Facet F;
+		Generator_System gs;
+		vector<GMP_Integer>::iterator it;
+		Linear_Expression RayLE;
+		Linear_Expression PointLE;
+		for(int VarIndex = 0; VarIndex != Pt.size(); VarIndex++) {
+			RayLE += Variable(VarIndex) * (Pt[VarIndex]);
+			PointLE += Variable(VarIndex) * 0;
+		};
+		gs.insert(ray(RayLE));
+		gs.insert(point(PointLE));
+
+		F.Generators = C_Polyhedron(gs).minimized_generators();
+		
+		vector<vector<GMP_Integer> >::iterator itr;
+		
+		for (itr=FacetPts.begin(); itr != FacetPts.end(); itr++) {
+			F.PointIndices.insert(H.PointToIndexMap[*itr]);
+		};
+		Facets.push_back(F);
 	}
 	return Facets;
 }
@@ -193,39 +153,29 @@ vector<Edge> FindEdges(Hull H) {
 	vector<vector<GMP_Integer> >::iterator itr;
 	for (itr=CandidateEdges.begin(); itr != CandidateEdges.end(); itr++) {
 		vector<GMP_Integer> CandidateEdge = (*itr);
-		vector<GMP_Integer>::iterator it;
-		it=CandidateEdge.begin();
-		GMP_Integer Point1 = *it;
-		it++;
-		GMP_Integer Point2 = *it;
+		GMP_Integer Point1 = CandidateEdge[0];
+		GMP_Integer Point2 = CandidateEdge[1];
 
 		int FacetCount = 0;
-		vector<Facet>::iterator FacetIt;
-
 		Generator_System gs;
-		for (FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
+		for (vector<Facet>::iterator FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
 			set<GMP_Integer> PtIndices = (*FacetIt).PointIndices;
 			bool Point1IsInFacet = PtIndices.find(Point1) != PtIndices.end();
 			bool Point2IsInFacet = PtIndices.find(Point2) != PtIndices.end();
 			if (Point1IsInFacet and Point2IsInFacet) {
+				Generator_System Generators = (*FacetIt).Generators;
+				for (Generator_System::const_iterator GenItr = Generators.begin(),
+				cs_end = Generators.end(); GenItr != cs_end; ++GenItr) {
+					gs.insert(*GenItr);
+				};
 				FacetCount++;
-				Generator_System ConeGenerators = C_Polyhedron((*FacetIt).ConeConstraints).minimized_generators();
-				for (Generator_System::const_iterator iii = ConeGenerators.begin(),
-				cs_end = ConeGenerators.end(); iii != cs_end; ++iii) {
-					gs.insert(*iii);
-				}
 			};
 		};
 
-		// Is >= correct?
 		if (FacetCount >= Dim) {
 			Edge NewEdge;
-			set<GMP_Integer> PointIndices;
-			set<int> NeighborIndices;
-			PointIndices.insert(Point1);
-			PointIndices.insert(Point2);
-			NewEdge.PointIndices = PointIndices;
-			NewEdge.NeighborIndices = NeighborIndices;
+			NewEdge.PointIndices.insert(Point1);
+			NewEdge.PointIndices.insert(Point2);
 
 			// Need to add all of the generators of the lineality space to the cones.
 			Generator_System gs2 = H.LinealitySpace;
@@ -234,31 +184,22 @@ vector<Edge> FindEdges(Hull H) {
 				gs.insert(*i);
 			};
 			NewEdge.Cone = C_Polyhedron(gs);
+			NewEdge.Cone.minimized_generators();
+			NewEdge.Cone.minimized_constraints();
 			Edges.push_back(NewEdge);
 		}
 	};
-	
+
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
 	for (int Edge1Index = 0; Edge1Index != Edges.size(); Edge1Index++) {
 		Edge Edge1 = Edges[Edge1Index];
-		set<GMP_Integer>::iterator SetItr1=Edge1.PointIndices.begin();
-		GMP_Integer PtIndex1 = *SetItr1;
-		SetItr1++;
-		GMP_Integer PtIndex2 = *SetItr1;
-		
+
 		for (int Edge2Index = 0; Edge2Index != Edges.size(); Edge2Index++) {
 			if (Edge1Index == Edge2Index) {
 				continue;
 			};
-			Edge Edge2 = Edges[Edge2Index];
-			
-			int IntersectionCount = 0;
-			for (std::set<GMP_Integer>::iterator SetItr2=Edge2.PointIndices.begin(); 
-			SetItr2!=Edge2.PointIndices.end(); ++SetItr2) {
-				if ((*SetItr2 == PtIndex1) or (*SetItr2 == PtIndex2)) {
-					IntersectionCount++;
-				}
-			}
+
+			int IntersectionCount = IntersectSets(Edge1.PointIndices, Edges[Edge2Index].PointIndices).size();
 			if (IntersectionCount == 1) {
 				Edges[Edge1Index].NeighborIndices.insert(Edge2Index);
 				Edges[Edge2Index].NeighborIndices.insert(Edge1Index);
@@ -392,6 +333,16 @@ void PrintPoint(set<int> Point) {
 }
 
 //------------------------------------------------------------------------------
+void PrintPoint(set<GMP_Integer> Point) {
+	set<GMP_Integer>::iterator it;
+	cout << "{ ";
+	for (it=Point.begin(); it != Point.end(); it++) {
+		cout << (*it) << " ";
+	}
+	cout << "}" << endl;
+}
+
+//------------------------------------------------------------------------------
 void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim) {
 	cout << "C_Polyhedron dimension:" << ph.affine_dimension() << endl;
 	cout << "Generators: " << ph.minimized_generators() << endl;
@@ -407,15 +358,37 @@ void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim) {
 
 //------------------------------------------------------------------------------
 set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2) {
+	set<GMP_Integer>::iterator S1Itr = S1.begin();
+	set<GMP_Integer>::iterator S2Itr = S2.begin();
 	set<GMP_Integer> Result;
-	set<GMP_Integer>::iterator SetItr;
-	for (SetItr = S1.begin(); SetItr != S1.end(); SetItr++) {
-		GMP_Integer TestInt = *SetItr;
-		if ( find(S2.begin(), S2.end(), TestInt) != S2.end() ) {
-			if ( find(Result.begin(), Result.end(), TestInt) == Result.end() ) {
-				Result.insert(TestInt);
-			};
+	while (S1Itr != S1.end() and S2Itr != S2.end()) {
+		if (*S1Itr < *S2Itr) {
+			++S1Itr;
+		}
+		else if (*S2Itr<*S1Itr) {
+			++S2Itr;
+		} else {
+			Result.insert(*S1Itr);
+			S1Itr++;
+			S2Itr++;
 		};
 	};
 	return Result;
+}
+
+//------------------------------------------------------------------------------
+bool SetsDoIntersect(set<GMP_Integer> S1, set<GMP_Integer> S2) {
+	set<GMP_Integer>::iterator S1Itr = S1.begin();
+	set<GMP_Integer>::iterator S2Itr = S2.begin();
+	while (S1Itr != S1.end() and S2Itr != S2.end()) {
+		if (*S1Itr < *S2Itr) {
+			++S1Itr;
+		}
+		else if (*S2Itr<*S1Itr) {
+			++S2Itr;
+		} else {
+			return true;
+		};
+	};
+	return false;
 }
