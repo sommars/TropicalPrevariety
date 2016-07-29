@@ -15,17 +15,14 @@ class Edge {
 
 class Facet {
 	public:
-		vector<vector<GMP_Integer> > Points;
 		set<GMP_Integer> PointIndices;
-		Constraint FacetConstraint;
-		Constraint_System ConeConstraints;
+		Generator_System Generators;
 };
 
 class Hull {
 	public:
 		vector<vector<GMP_Integer> > Points;
 		map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap;
-		map<GMP_Integer,vector<GMP_Integer> > IndexToPointMap;
 		vector<Edge> Edges;
 		vector<Facet> Facets;
 		C_Polyhedron CPolyhedron;
@@ -89,3 +86,6 @@ void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim = true);
 
 //------------------------------------------------------------------------------
 set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2);
+
+//------------------------------------------------------------------------------
+bool SetsDoIntersect(set<GMP_Integer> S1, set<GMP_Integer> S2);
