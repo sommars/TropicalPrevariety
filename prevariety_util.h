@@ -27,14 +27,15 @@ class Hull {
 		vector<Facet> Facets;
 		C_Polyhedron CPolyhedron;
 		Generator_System LinealitySpace;
-		int Dimension;
+		int AffineDimension;
+		int SpaceDimension;
 };
 
 //------------------------------------------------------------------------------
 double GetPolyhedralIntersectionTime();
 
 //------------------------------------------------------------------------------
-C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2);
+C_Polyhedron IntersectCones(C_Polyhedron &ph1, C_Polyhedron &ph2);
 
 //------------------------------------------------------------------------------
 vector<GMP_Integer> GeneratorToPoint(Generator g);
