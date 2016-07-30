@@ -5,35 +5,25 @@
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
-double IntersectionTime;
 
 //------------------------------------------------------------------------------
-double GetPolyhedralIntersectionTime() {
-	return IntersectionTime;
-}
-
-//------------------------------------------------------------------------------
-C_Polyhedron IntersectCones(C_Polyhedron ph1, C_Polyhedron ph2) {
-	
-  clock_t begin = clock();
-	Constraint_System cs;
-	
+C_Polyhedron IntersectCones(C_Polyhedron &ph1, C_Polyhedron &ph2) {
 	Constraint_System cs1 = ph1.minimized_constraints();
 	Constraint_System cs2 = ph2.minimized_constraints();
 	for (Constraint_System::const_iterator i = cs1.begin(),
 	cs1_end = cs1.end(); i != cs1_end; ++i) {
 		cs2.insert(*i);
 	}
-	C_Polyhedron ph(cs2);
-
-	IntersectionTime += double(clock() - begin);
+	Recycle_Input dummy;
+	C_Polyhedron ph(cs2,dummy);
+	ph.affine_dimension();
 	return ph;
 }
 
 //------------------------------------------------------------------------------
 vector<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
 	vector<GMP_Integer> Result;
-	for (int i = 0; i < g.space_dimension(); i++) {
+	for (size_t i = 0; i < g.space_dimension(); i++) {
 		Result.push_back((g).coefficient(Variable(i)));
 	}
 
@@ -54,7 +44,7 @@ vector<vector<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
 //------------------------------------------------------------------------------
 vector<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
 	vector<GMP_Integer> Result;
-	for (int i = 0; i < c.space_dimension(); i++) {
+	for (size_t i = 0; i < c.space_dimension(); i++) {
 		Result.push_back((c).coefficient(Variable(i)));
 	}
 
@@ -67,7 +57,8 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 
 	H.CPolyhedron = FindCPolyhedron(Points);
 	H.Points = GeneratorSystemToPoints(H.CPolyhedron.minimized_generators());
-	H.Dimension = H.CPolyhedron.affine_dimension();
+	H.AffineDimension = H.CPolyhedron.affine_dimension();
+	H.SpaceDimension = H.CPolyhedron.space_dimension();
 	
 	// Find the lineality space.
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
@@ -84,7 +75,7 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	};
 	
 	// Create PointToIndexMap
-	for (int i = 0; i != H.Points.size(); i++) {
+	for (size_t i = 0; i != H.Points.size(); i++) {
 		vector<GMP_Integer> Point = H.Points[i];
 		H.PointToIndexMap[Point]=i;
 	};
@@ -93,7 +84,8 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	H.Edges = FindEdges(H);
 	cout << "Convex hull------------------------" << endl;
 	PrintPoints(H.Points);
-	cout << "Dimension: " << H.Dimension << endl;
+	cout << "Affine dimension: " << H.AffineDimension << endl;
+	cout << "Space dimension: " << H.SpaceDimension << endl;
 	cout << "Number of edges: " << H.Edges.size() << endl;
 	cout << "Number of facets: " << H.Facets.size() << endl << endl;
 	return H;
@@ -120,7 +112,7 @@ vector<Facet> FindFacets(Hull H) {
 		vector<GMP_Integer>::iterator it;
 		Linear_Expression RayLE;
 		Linear_Expression PointLE;
-		for(int VarIndex = 0; VarIndex != Pt.size(); VarIndex++) {
+		for(size_t VarIndex = 0; VarIndex != Pt.size(); VarIndex++) {
 			RayLE += Variable(VarIndex) * (Pt[VarIndex]);
 			PointLE += Variable(VarIndex) * 0;
 		};
@@ -184,17 +176,20 @@ vector<Edge> FindEdges(Hull H) {
 				gs.insert(*i);
 			};
 			NewEdge.Cone = C_Polyhedron(gs);
+			
+			// Force PPL to calculate as much as we need ahead of time.
 			NewEdge.Cone.minimized_generators();
 			NewEdge.Cone.minimized_constraints();
+			NewEdge.Cone.affine_dimension();
 			Edges.push_back(NewEdge);
 		}
 	};
 
 	// After all of the edges have been generated, fill out all of the neighbors on all of the edges.
-	for (int Edge1Index = 0; Edge1Index != Edges.size(); Edge1Index++) {
+	for (size_t Edge1Index = 0; Edge1Index != Edges.size(); Edge1Index++) {
 		Edge Edge1 = Edges[Edge1Index];
 
-		for (int Edge2Index = 0; Edge2Index != Edges.size(); Edge2Index++) {
+		for (size_t Edge2Index = 0; Edge2Index != Edges.size(); Edge2Index++) {
 			if (Edge1Index == Edge2Index) {
 				continue;
 			};
@@ -243,7 +238,7 @@ GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
 		cin.get();
 	};
 	GMP_Integer Result = 0;
-	for (int i = 0; i != V1.size(); i++) {
+	for (size_t i = 0; i != V1.size(); i++) {
 		Result += V1[i] * V2[i];
 	}
 	return Result;
@@ -262,7 +257,7 @@ vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > Points
 	InitialForm.push_back(Points[0]);
 	GMP_Integer MinimalIP = InnerProduct(Vector, Points[0]);
 
-	for (int i = 1; i != Points.size(); i++) {
+	for (size_t i = 1; i != Points.size(); i++) {
 		vector<GMP_Integer> Point = Points[i];
 		GMP_Integer IP = InnerProduct(Vector, Point);
 		if (MinimalIP > IP) {
@@ -284,7 +279,7 @@ C_Polyhedron FindCPolyhedron(vector<vector<GMP_Integer> > Points) {
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
 		vector<GMP_Integer> Point = *itr;
 		Linear_Expression LE;
-		for (int i = 0; i != Point.size(); i++) {
+		for (size_t i = 0; i != Point.size(); i++) {
 			LE = LE + Variable(i) * (Point[i]);
 		};
 		gs.insert(point(LE));
