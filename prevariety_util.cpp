@@ -21,6 +21,22 @@ C_Polyhedron IntersectCones(C_Polyhedron &ph1, C_Polyhedron &ph2) {
 }
 
 //------------------------------------------------------------------------------
+Cone IntersectCones(Cone C1, Cone C2) {
+	Constraint_System cs1 = C1.Polyhedron.minimized_constraints();
+	Constraint_System cs2 = C2.Polyhedron.minimized_constraints();
+	for (Constraint_System::const_iterator i = cs1.begin(),
+	cs1_end = cs1.end(); i != cs1_end; ++i) {
+		cs2.insert(*i);
+	}
+	Recycle_Input dummy;
+	C_Polyhedron ph(cs2,dummy);
+	ph.affine_dimension();
+	Cone C3;
+	C3.Polyhedron = ph;
+	return C3;
+}
+
+//------------------------------------------------------------------------------
 vector<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
 	vector<GMP_Integer> Result;
 	for (size_t i = 0; i < g.space_dimension(); i++) {
@@ -175,12 +191,12 @@ vector<Edge> FindEdges(Hull H) {
 			cs_end = gs2.end(); i != cs_end; ++i) {
 				gs.insert(*i);
 			};
-			NewEdge.Cone = C_Polyhedron(gs);
+			NewEdge.EdgeCone.Polyhedron = C_Polyhedron(gs);
 			
 			// Force PPL to calculate as much as we need ahead of time.
-			NewEdge.Cone.minimized_generators();
-			NewEdge.Cone.minimized_constraints();
-			NewEdge.Cone.affine_dimension();
+			NewEdge.EdgeCone.Polyhedron.minimized_generators();
+			NewEdge.EdgeCone.Polyhedron.minimized_constraints();
+			NewEdge.EdgeCone.Polyhedron.affine_dimension();
 			Edges.push_back(NewEdge);
 		}
 	};
@@ -245,7 +261,7 @@ GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
 }
 
 //------------------------------------------------------------------------------
-vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > Points, vector<GMP_Integer> Vector) {
+vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > &Points, vector<GMP_Integer> &Vector) {
 	/*
 		Computes the initial form of a vector and a set of points.
 	*/
@@ -356,7 +372,7 @@ set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2) {
 	set<GMP_Integer>::iterator S1Itr = S1.begin();
 	set<GMP_Integer>::iterator S2Itr = S2.begin();
 	set<GMP_Integer> Result;
-	while (S1Itr != S1.end() and S2Itr != S2.end()) {
+	while ((S1Itr != S1.end()) && (S2Itr != S2.end())) {
 		if (*S1Itr < *S2Itr) {
 			++S1Itr;
 		}
@@ -372,10 +388,10 @@ set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2) {
 }
 
 //------------------------------------------------------------------------------
-bool SetsDoIntersect(set<GMP_Integer> S1, set<GMP_Integer> S2) {
+bool SetsDoIntersect(set<GMP_Integer> &S1, set<GMP_Integer> &S2) {
 	set<GMP_Integer>::iterator S1Itr = S1.begin();
 	set<GMP_Integer>::iterator S2Itr = S2.begin();
-	while (S1Itr != S1.end() and S2Itr != S2.end()) {
+	while ((S1Itr != S1.end()) && (S2Itr != S2.end())) {
 		if (*S1Itr < *S2Itr) {
 			++S1Itr;
 		}
