@@ -72,18 +72,21 @@ bool operator == (const Cone &L, const Cone &R)
 //------------------------------------------------------------------------------
 class IntersectTest {
 	int SpaceDimension;
+	int HullIndex;
 	vector<Edge> &Edges;
 	vector<vector<GMP_Integer> > &Pts;
 	map<vector<GMP_Integer>,GMP_Integer> &PointToIndexMap;
 	vector<Cone> &TestCones;
 	vector<vector<Cone> > &Result;
 	public:
-		IntersectTest(int dim, vector<Edge> &e, vector<vector<GMP_Integer> > &pts, map<vector<GMP_Integer>,GMP_Integer> &ptmap, vector<Cone> &cones, vector<vector<Cone> > &output): SpaceDimension(dim), Edges(e), Pts(pts), PointToIndexMap(ptmap), TestCones(cones), Result(output) { }
+		IntersectTest(int dim, int hi, vector<Edge> &e, vector<vector<GMP_Integer> > &pts, map<vector<GMP_Integer>,GMP_Integer> &ptmap, vector<Cone> &cones, vector<vector<Cone> > &output): SpaceDimension(dim), HullIndex(hi), Edges(e), Pts(pts), PointToIndexMap(ptmap), TestCones(cones), Result(output) { }
     void operator() (const blocked_range<size_t>& r ) const	
 {
 	for(size_t ConeIndex=r.begin(); ConeIndex != r.end(); ConeIndex++) {
-
+	
 		Cone NewCone = TestCones[ConeIndex];
+		int NumberOfHulls = NewCone.IntersectionIndices.size();
+		set<int> NewConeIntersectionIndices = NewCone.IntersectionIndices[HullIndex];
 		//take a random vector from cone		
 		vector<GMP_Integer> RandomVector(SpaceDimension, 0);
 		Generator_System gs = NewCone.Polyhedron.minimized_generators();
@@ -163,15 +166,33 @@ class IntersectTest {
 				PretropGraphEdges.insert(EdgeToTestIndex);
 			
 				clock_t begin = clock();
-				if (find(NewCones.begin(), NewCones.end(), TempCone) == NewCones.end() ) {
+				vector<Cone>:: iterator ConeIt;
+				
+				ConeIt = find(NewCones.begin(), NewCones.end(), TempCone);
+				if (ConeIt == NewCones.end()) {
+					// Initialize the sets by intersecting the sets of EdgeToTest.EdgeCone and NewCone
+					vector<set<int> > InitialSet (NewCone.IntersectionIndices.size());
+					TempCone.IntersectionIndices = InitialSet;
+					for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
+						TempCone.IntersectionIndices[i] = IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
+					};
 					NewCones.push_back(TempCone);
+				} else {
+					for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
+						(*ConeIt).IntersectionIndices[i] = IntersectSets((*ConeIt).IntersectionIndices[i], NewCone.IntersectionIndices[i]);
+						(*ConeIt).IntersectionIndices[i] = IntersectSets((*ConeIt).IntersectionIndices[i], EdgeToTest.EdgeCone.IntersectionIndices[i]);
+					};
+
 				};
+				
+				
 				ListAppendTime += double(clock() - begin);
 
 				set<int>::iterator NeighborItr;
 				for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
 					int Neighbor = *NeighborItr;
-					if (( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() )
+					if (( find(NewConeIntersectionIndices.begin(), NewConeIntersectionIndices.end(), Neighbor) != NewConeIntersectionIndices.end())
+					&& ( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() )
 					&& ( find(NotPretropGraphEdges.begin(), NotPretropGraphEdges.end(), Neighbor) == NotPretropGraphEdges.end() )
 					&& ( find(EdgesToTest.begin(), EdgesToTest.end(), Neighbor) == EdgesToTest.end() )
 					&& ( find(InitialEdgesToTest.begin(), InitialEdgesToTest.end(), Neighbor) == InitialEdgesToTest.end() )) {
@@ -194,6 +215,7 @@ bool HullSort(Hull a, Hull b) {
 
 //------------------------------------------------------------------------------				
 int main(int argc, char* argv[]) {
+	clock_t StartTime = clock();
 	if (argc != 3) {
 		cout << "Internal error: expected two arguments." << endl;
 		return 1;
@@ -213,38 +235,7 @@ int main(int argc, char* argv[]) {
 		TestIndex++;
 	}
 	//sort( Hulls.begin(), Hulls.end(), HullSort);
-	
-	/*
-	map<vector<int>,bool> PreintersectMap;
-	clock_t PreintTimeStart = clock();
-	int TotalInt = 0;
-	int NonInt = 0;
-	int ExpectedDim = Hulls[0].Edges[0].EdgeCone.Polyhedron.affine_dimension() - 1;
-	for(int i = 0; i != Hulls.size(); i++){
-		vector<Edge> Edges1 = Hulls[i].Edges;
-		for(int j = i+1; j != Hulls.size(); j++){
-			vector<Edge> Edges2 = Hulls[j].Edges;
-			
-			for(int k = 0; k != Edges1.size(); k++){
-				for(int l = 0; l != Edges2.size(); l++){
-					vector<int> Pt;
-					Pt.push_back(i);
-					Pt.push_back(k);
-					Pt.push_back(j);
-					Pt.push_back(l);
-					bool ConesDoIntersect = IntersectCones(Edges1[k].EdgeCone.Polyhedron, Edges2[l].EdgeCone.Polyhedron).affine_dimension() >= ExpectedDim;
-					PreintersectMap[Pt] = ConesDoIntersect;
-					TotalInt++;
-					if (!ConesDoIntersect) NonInt++;
-				};
-			};
-		};
-		printf("Finished level %d of pre-intersections.\n", i);
-	};
-	cout << "Total Intersections: " << TotalInt << ", Non Intersections: " << NonInt << endl;
-	cout << "Preintersection time: " << double(clock() - PreintTimeStart) / CLOCKS_PER_SEC << endl;
-			cin.get();
-	*/
+		
 	if (string(argv[2]) == "refinement") {
 		// Start by initializing the objects.
 		vector<vector<Cone> > Cones;
@@ -296,6 +287,42 @@ int main(int argc, char* argv[]) {
 		};
 	}
 	else if (string(argv[2]) == "new") {
+		for(int i = 0; i != Hulls.size(); i++){
+			for(int j = 0; j != Hulls[i].Edges.size(); j++){
+				vector<set<int> > InitialSet (Hulls.size());
+				Hulls[i].Edges[j].EdgeCone.IntersectionIndices = InitialSet;
+			};
+		};	
+		clock_t PreintTimeStart = clock();
+		int TotalInt = 0;
+		int NonInt = 0;
+		int ExpectedDim = Hulls[0].Edges[0].EdgeCone.Polyhedron.affine_dimension() - 1;
+		// TODO: switch this to explore the edge skeleton method.
+		for(int i = 0; i != Hulls.size(); i++){
+			vector<Edge> Edges1 = Hulls[i].Edges;
+			for(int j = i+1; j != Hulls.size(); j++){
+				vector<Edge> Edges2 = Hulls[j].Edges;
+			
+				for(int k = 0; k != Edges1.size(); k++){
+					for(int l = 0; l != Edges2.size(); l++){
+						bool ConesDoIntersect = IntersectCones(Edges1[k].EdgeCone.Polyhedron, Edges2[l].EdgeCone.Polyhedron).affine_dimension() >= ExpectedDim;
+						if (ConesDoIntersect) {
+							Hulls[i].Edges[k].EdgeCone.IntersectionIndices[j].insert(l);
+							Hulls[j].Edges[l].EdgeCone.IntersectionIndices[i].insert(k);
+						};
+						if (!ConesDoIntersect) {
+							NonInt++;
+						};
+						TotalInt++;
+					};
+				};
+			};
+			printf("Finished level %d of pre-intersections.\n", i);
+		};
+		cout << "Total Intersections: " << TotalInt << ", Non Intersections: " << NonInt << endl;
+		cout << "Preintersection time: " << double(clock() - PreintTimeStart) / CLOCKS_PER_SEC << endl;
+
+	
 		for (size_t HullIndex = 0; HullIndex != Hulls.size(); HullIndex++) {
 			Hull H = Hulls[HullIndex];
 			vector<Edge> Edges = H.Edges;
@@ -318,7 +345,7 @@ int main(int argc, char* argv[]) {
 				task_scheduler_init init(1);
 
 				clock_t ParallelBegin = clock();
-				parallel_for(blocked_range<size_t>(0,ConeVector.size()),IntersectTest(H.SpaceDimension,Edges,Pts,PointToIndexMap,ConeVector,Arr));
+				parallel_for(blocked_range<size_t>(0,ConeVector.size()),IntersectTest(H.SpaceDimension, HullIndex,Edges,Pts,PointToIndexMap,ConeVector,Arr));
 				ParallelTime += double(clock() - ParallelBegin);
 				for(size_t i = 0; i != ConeVector.size(); i++) {
 					vector<Cone> ConesToAdd = Arr[i];
@@ -326,8 +353,14 @@ int main(int argc, char* argv[]) {
 					for(CPolyItr = ConesToAdd.begin(); CPolyItr != ConesToAdd.end(); CPolyItr++) {
 						Cone ConeToAdd = *CPolyItr;
 						clock_t begin = clock();
-						if (find(NewCones.begin(), NewCones.end(), ConeToAdd) == NewCones.end() ) {
+
+						vector<Cone>:: iterator ConeIt = find(NewCones.begin(), NewCones.end(), ConeToAdd);
+						if (ConeIt == NewCones.end()) {
 							NewCones.push_back(ConeToAdd);
+						} else {
+							for (size_t i = HullIndex + 1; i != ConeToAdd.IntersectionIndices.size(); i++) {
+								(*ConeIt).IntersectionIndices[i] = IntersectSets((*ConeIt).IntersectionIndices[i], ConeToAdd.IntersectionIndices[i]);
+							};
 						};
 						ListAppendTime += clock() - begin;
 					};
@@ -350,14 +383,51 @@ int main(int argc, char* argv[]) {
 				cout << "List append time: " << ListAppendTime / CLOCKS_PER_SEC << endl;
 				cout << "Intersection time: " << IntersectionTime / CLOCKS_PER_SEC << endl;
 				cout << "Parallel time: " << ParallelTime / CLOCKS_PER_SEC << endl;
+				cout << "Total elapsed time: " << double(clock() - StartTime) / CLOCKS_PER_SEC << endl;
 				//cout << "ConstraintCount: " << Constraints.size() << endl;
 				ConeVector = NewCones;
 			};
 			printf("Finished level %lu of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", HullIndex, Hulls.size(), ConeVector.size(),ConeIntersectionCount);
 		};
 		cout << "ConeVector count: " << ConeVector.size() << endl;
-	};
+	}
+	else if (string(argv[2]) == "graph") {
+		for(int i = 0; i != Hulls.size(); i++){
+			for(int j = 0; j != Hulls[i].Edges.size(); j++){
+				vector<set<int> > InitialSet (Hulls.size());
+				Hulls[i].Edges[j].EdgeCone.IntersectionIndices = InitialSet;
+			};
+		};	
+		clock_t PreintTimeStart = clock();
+		int TotalInt = 0;
+		int NonInt = 0;
+		int ExpectedDim = Hulls[0].Edges[0].EdgeCone.Polyhedron.affine_dimension() - 1;
+		// TODO: switch this to explore the edge skeleton method.
+		for(int i = 0; i != Hulls.size(); i++){
+			vector<Edge> Edges1 = Hulls[i].Edges;
+			for(int j = i+1; j != Hulls.size(); j++){
+				vector<Edge> Edges2 = Hulls[j].Edges;
+			
+				for(int k = 0; k != Edges1.size(); k++){
+					for(int l = 0; l != Edges2.size(); l++){
+						bool ConesDoIntersect = IntersectCones(Edges1[k].EdgeCone.Polyhedron, Edges2[l].EdgeCone.Polyhedron).affine_dimension() >= ExpectedDim;
+						if (ConesDoIntersect) {
+							Hulls[i].Edges[k].EdgeCone.IntersectionIndices[j].insert(l);
+							Hulls[j].Edges[l].EdgeCone.IntersectionIndices[i].insert(k);
+						};
+						if (!ConesDoIntersect) {
+							NonInt++;
+						};
+						TotalInt++;
+					};
+				};
+			};
+			printf("Finished level %d of pre-intersections.\n", i);
+		};
+		cout << "Total Intersections: " << TotalInt << ", Non Intersections: " << NonInt << endl;
+		cout << "Preintersection time: " << double(clock() - PreintTimeStart) / CLOCKS_PER_SEC << endl;
 
+	};
 	cout << "Finished intersecting cones." << endl << endl << endl;
 	vector<Generator> gv;
 	vector<Cone>::iterator PolyItr;
