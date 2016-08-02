@@ -5,10 +5,15 @@ using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 
+class Cone {
+	public:
+		C_Polyhedron Polyhedron;
+		vector<set<int> > IntersectionIndices;
+};
 
 class Edge {
 	public:
-		C_Polyhedron Cone;
+		Cone EdgeCone;
 		set<GMP_Integer> PointIndices;
 		set<int> NeighborIndices;
 };
@@ -38,6 +43,9 @@ double GetPolyhedralIntersectionTime();
 C_Polyhedron IntersectCones(C_Polyhedron &ph1, C_Polyhedron &ph2);
 
 //------------------------------------------------------------------------------
+Cone IntersectCones(Cone C1, Cone C2);
+
+//------------------------------------------------------------------------------
 vector<GMP_Integer> GeneratorToPoint(Generator g);
 
 //------------------------------------------------------------------------------
@@ -62,7 +70,7 @@ vector<vector<GMP_Integer> > FindCandidateEdges(Hull H);
 GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2);
 
 //------------------------------------------------------------------------------
-vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > Points, vector<GMP_Integer> Vector);
+vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > &Points, vector<GMP_Integer> &Vector);
 
 //------------------------------------------------------------------------------
 C_Polyhedron FindCPolyhedron(vector<vector<GMP_Integer> > Points);
@@ -89,4 +97,4 @@ void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim = true);
 set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2);
 
 //------------------------------------------------------------------------------
-bool SetsDoIntersect(set<GMP_Integer> S1, set<GMP_Integer> S2);
+bool SetsDoIntersect(set<GMP_Integer> &S1, set<GMP_Integer> &S2);
