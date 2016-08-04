@@ -426,8 +426,64 @@ int main(int argc, char* argv[]) {
 		};
 		cout << "Total Intersections: " << TotalInt << ", Non Intersections: " << NonInt << endl;
 		cout << "Preintersection time: " << double(clock() - PreintTimeStart) / CLOCKS_PER_SEC << endl;
-
+		vector<vector<int> > Cliques;
+		for (size_t i = 0; i != Hulls[0].Edges.size(); i++) {
+			vector<int> Clique;
+			Clique.push_back(i);
+			Cliques.push_back(Clique);
+		};
+		
+		for (size_t i = 1; i != Hulls.size(); i++) {
+			vector<vector<int> > NewCliques;
+			for(size_t j = 0; j != Cliques.size(); j++) {
+				vector<int> Clique = Cliques[j];
+				for(size_t k = 0; k != Hulls[i].Edges.size(); k++) {
+					Edge E = Hulls[i].Edges[k];
+					bool IsPartOfClique = true;
+					for (size_t m = 0; m != Clique.size(); m++) {
+						set<int> CliqueSet = E.EdgeCone.IntersectionIndices[m];
+						if (find(CliqueSet.begin(), CliqueSet.end(), Clique[m]) == CliqueSet.end()) {
+							IsPartOfClique = false;
+							break;
+						};
+					};
+					if (IsPartOfClique) {
+						vector<int> NewClique (Clique.size());
+						for (int l = 0; l != Clique.size(); l++) {
+							NewClique[l] = Clique[l];
+						};
+						NewClique.push_back(k);
+						NewCliques.push_back(NewClique);
+					};
+				};
+			};
+			cout << "NewCliques count: " << NewCliques.size() << endl;
+			Cliques = NewCliques;
+		};
+		int NonIntersection = 0;
+		for (size_t i = 0; i != Cliques.size(); i++) {
+			vector<int> Clique = Cliques[i];
+			C_Polyhedron ph = Hulls[0].Edges[Clique[0]].EdgeCone.Polyhedron;
+			bool ShouldAddCone = true;
+			for (size_t j = 1; j != Clique.size(); j++) {
+				if (ph.affine_dimension() == 0) {
+					ShouldAddCone = false;
+					break;
+				}
+				ph = IntersectCones(ph,Hulls[j].Edges[Clique[j]].EdgeCone.Polyhedron);
+			};
+			if (ph.affine_dimension() == 0) {
+				NonIntersection++;
+			};
+			if (ShouldAddCone) {
+				Cone NewCone;
+				NewCone.Polyhedron = ph;
+				ConeVector.push_back(NewCone);
+			};
+		};
+		cout << "NonIntersection: " << NonIntersection << endl;
 	};
+	
 	cout << "Finished intersecting cones." << endl << endl << endl;
 	vector<Generator> gv;
 	vector<Cone>::iterator PolyItr;
