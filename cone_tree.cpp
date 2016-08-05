@@ -3,7 +3,7 @@
 #include <list>
 #include <string>
 #include "prevariety_util.h"
-#include "polyhedron_tree.h"
+#include "cone_tree.h"
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
@@ -12,9 +12,51 @@ namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 //can cut off the children, because it contains its children.
 //The number of constraints varies, but it is >=dimension of the initial problem.
 
-void InsertCone(Node &Tree, Cone LeafCone) {
+void InsertCone(Node &Tree, Cone &LeafCone) {
 	vector<string> ConstraintStrings;
-	// Convert the constraints to a list of strings. Sort them by lex.
+	// Convert the constraints to a list of strings. Sort them by lex
+	Constraint_System cs = LeafCone.minimized_constraints();
+
+	Node CurrentRoot = Tree;
+	vector<Node> Children = Tree.Children;
+	for (int i = 0; i != ConstraintStrings.size(); i++) {
+		bool FoundCorrectChild = false;
+		for (int j = 0; j != Children.size(); j++) {
+			Node Child = Children[j];
+			if (Child.Constraint == ConstraintStrings[i]) {
+				FoundCorrectChild = true;
+				CurrentRoot = Child;
+				if (Child.IsLeaf) {
+					// Either the cone we are trying to add is the same cone, or it's smaller.
+					// If it's smaller, we don't want to add it.
+					if (i+1 != ConstraintStrings.size()) {
+						return;
+					} else {
+						// Intersect all of the pre-intersect indices.
+						for (size_t k = 0; k != LeafCone.IntersectionIndices.size(); k++) {
+							(Child.LeafCone).IntersectionIndices[i] = IntersectSets((Child.LeafCone).IntersectionIndices[k], LeafCone.IntersectionIndices[k]);
+						};
+					};
+				};
+				break;
+			};
+		};
+		if (!FoundCorrectChild) {
+			Node NewNode;
+			NewNode.Constraint = ConstraintStrings[i];
+			// Set the leaf properties correctly, if it is a leaf.
+			if (i+1 != ConstraintStrings.size()) {
+				NewNode.IsLeaf = false;
+			} else {
+				NewNode.IsLeaf = true;
+				NewNode.LeafCone = LeafCone;
+			};
+			CurrentRoot.Children.push_back(NewNode);
+			CurrentRoot = NewNode;
+		} else {
+			Children = CurrentRoot.Children;
+		};
+	};
 };
 
 //------------------------------------------------------------------------------
