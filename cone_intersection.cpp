@@ -2,12 +2,15 @@
 #include <ppl.hh>
 #include <ctime>
 #include "prevariety_util.h"
+#include "cone_tree.h"
 #include <algorithm>
 #include "tbb/tbb.h"
 #include "tbb/blocked_range.h"
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_init.h"
 #include <vector>
+#include <string>
+#include <sstream>
 
 using namespace std;
 using namespace Parma_Polyhedra_Library;
@@ -83,7 +86,8 @@ class IntersectTest {
     void operator() (const blocked_range<size_t>& r ) const	
 {
 	for(size_t ConeIndex=r.begin(); ConeIndex != r.end(); ConeIndex++) {
-	
+		Node Tree;
+		Tree.IsLeaf = false;
 		Cone NewCone = TestCones[ConeIndex];
 		int NumberOfHulls = NewCone.IntersectionIndices.size();
 		set<int> NewConeIntersectionIndices = NewCone.IntersectionIndices[HullIndex];
@@ -139,13 +143,12 @@ class IntersectTest {
 				ConeDoesContain = EdgeToTest.EdgeCone.Polyhedron.contains(NewCone.Polyhedron);
 			};
 			ContainmentTime += double(clock() - ContainmentBegin);
-
+			
 			if (ConeDoesContain) {
-				if (find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
-					NewCones.push_back(NewCone);
-				};
+				InsertCone(Tree,NewCone);
 				break;
 			};
+			
 			clock_t IntBegin = clock();
 
 			Constraint_System cs1 = EdgeToTest.EdgeCone.Polyhedron.minimized_constraints();
@@ -162,32 +165,18 @@ class IntersectTest {
 			IntersectionTime += double(clock() - IntBegin);
 			ConeIntersectionCount++;
 			int ExpectedDimension = min(EdgeToTest.EdgeCone.Polyhedron.affine_dimension(),NewCone.Polyhedron.affine_dimension()) - 1;
+
 			if (ExpectedDimension <= TempCone.Polyhedron.affine_dimension()) {
 				PretropGraphEdges.insert(EdgeToTestIndex);
 			
 				clock_t begin = clock();
-				vector<Cone>:: iterator ConeIt;
-				
-				ConeIt = find(NewCones.begin(), NewCones.end(), TempCone);
-				if (ConeIt == NewCones.end()) {
-					// Initialize the sets by intersecting the sets of EdgeToTest.EdgeCone and NewCone
-					vector<set<int> > InitialSet (NewCone.IntersectionIndices.size());
-					TempCone.IntersectionIndices = InitialSet;
-					for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
-						TempCone.IntersectionIndices[i] = IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
-					};
-					NewCones.push_back(TempCone);
-				} else {
-					for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
-						(*ConeIt).IntersectionIndices[i] = IntersectSets((*ConeIt).IntersectionIndices[i], NewCone.IntersectionIndices[i]);
-						(*ConeIt).IntersectionIndices[i] = IntersectSets((*ConeIt).IntersectionIndices[i], EdgeToTest.EdgeCone.IntersectionIndices[i]);
-					};
-
+				vector<set<int> > InitialSet (NewCone.IntersectionIndices.size());
+				TempCone.IntersectionIndices = InitialSet;
+				for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
+					TempCone.IntersectionIndices[i] = IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
 				};
-				
-				
+				InsertCone(Tree, TempCone);
 				ListAppendTime += double(clock() - begin);
-
 				set<int>::iterator NeighborItr;
 				for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
 					int Neighbor = *NeighborItr;
@@ -203,7 +192,7 @@ class IntersectTest {
 				NotPretropGraphEdges.insert(EdgeToTestIndex);
 			};
 		};
-		Result[ConeIndex] = NewCones;
+		Result[ConeIndex] = GetCones(Tree);
 	};
 }	
 };
@@ -337,16 +326,16 @@ int main(int argc, char* argv[]) {
 					ConeVector.push_back((*itr).EdgeCone);
 				};
 			} else {
-				vector<Cone> NewCones;
 				vector<Cone>::iterator ConeIterator;
 	
 	
 				vector<vector<Cone> > Arr(ConeVector.size());
 				task_scheduler_init init(1);
-
 				clock_t ParallelBegin = clock();
 				parallel_for(blocked_range<size_t>(0,ConeVector.size()),IntersectTest(H.SpaceDimension, HullIndex,Edges,Pts,PointToIndexMap,ConeVector,Arr));
 				ParallelTime += double(clock() - ParallelBegin);
+				Node Tree;
+				Tree.IsLeaf = false;
 				for(size_t i = 0; i != ConeVector.size(); i++) {
 					vector<Cone> ConesToAdd = Arr[i];
 					vector<Cone>::iterator CPolyItr;
@@ -354,22 +343,28 @@ int main(int argc, char* argv[]) {
 						Cone ConeToAdd = *CPolyItr;
 						clock_t begin = clock();
 
-						vector<Cone>:: iterator ConeIt = find(NewCones.begin(), NewCones.end(), ConeToAdd);
-						if (ConeIt == NewCones.end()) {
-							NewCones.push_back(ConeToAdd);
-						} else {
-							for (size_t i = HullIndex + 1; i != ConeToAdd.IntersectionIndices.size(); i++) {
-								(*ConeIt).IntersectionIndices[i] = IntersectSets((*ConeIt).IntersectionIndices[i], ConeToAdd.IntersectionIndices[i]);
-							};
-						};
+						InsertCone(Tree,ConeToAdd);
 						ListAppendTime += clock() - begin;
 					};
 				};
-				vector<Constraint> Constraints;
+				vector<Cone> NewCones = GetCones(Tree);
+				vector<Constraint> Constraints;/*
+				for(size_t i = 0; i != NewCones.size(); i++) {
+					Constraint_System cstest = NewCones[i].Polyhedron.minimized_constraints();
+					int count = 0;
+					for (Constraint_System::const_iterator it = cstest.begin(),
+					cs_end = cstest.end(); it != cs_end; ++it) {
+						count++;
+					};
+					cout << count << endl;
+				};
+				cout << "Pause" << endl;
+				cin.get();*/
 				/*
 				//TODO: constraint relation table.
 				//TODO: think about using affine_image to do dimension reduction.
 				//TODO: try using standard integer instead of GMP_Integer
+				
 				for(size_t i = 0; i != NewCones.size(); i++){
 					Constraint_System cstest = NewCones[i].minimized_constraints();
 					for (Constraint_System::const_iterator it = cstest.begin(),
