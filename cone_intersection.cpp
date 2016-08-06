@@ -112,7 +112,8 @@ class IntersectTest {
 		// List of indices of edges to visit.
 		vector<int> InitialEdgesToTest;
 		for(size_t EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
-			if (SetsDoIntersect(InitialIndices, Edges[EdgeIndex].PointIndices)) {
+			if (SetsDoIntersect(InitialIndices, Edges[EdgeIndex].PointIndices)
+			&& ( find(NewConeIntersectionIndices.begin(), NewConeIntersectionIndices.end(), EdgeIndex) != NewConeIntersectionIndices.end())) {
 				InitialEdgesToTest.push_back(EdgeIndex);
 			};
 		};
