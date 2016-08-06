@@ -15,18 +15,25 @@ namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 void InsertCone(Node &Tree, Cone &LeafCone) {
 	vector<string> ConstraintStrings;
 	// Convert the constraints to a list of strings. Sort them by lex
-	Constraint_System cs = LeafCone.minimized_constraints();
+	Constraint_System cs = LeafCone.Polyhedron.minimized_constraints();
+	for (Constraint_System::const_iterator i = cs.begin(),
+	cs_end = cs.end(); i != cs_end; ++i) {
+		stringstream ss;
+		ss << (*i);
+		ConstraintStrings.push_back(ss.str());
+	};
 
-	Node CurrentRoot = Tree;
-	vector<Node> Children = Tree.Children;
+	sort(ConstraintStrings.begin(),ConstraintStrings.end());
+	Node *CurrentRoot = &Tree;
 	for (int i = 0; i != ConstraintStrings.size(); i++) {
 		bool FoundCorrectChild = false;
-		for (int j = 0; j != Children.size(); j++) {
-			Node Child = Children[j];
-			if (Child.Constraint == ConstraintStrings[i]) {
+		vector<Node> *Children = &(*CurrentRoot).Children;
+		for (int j = 0; j != (*Children).size(); j++) {
+			Node *Child = &((*Children)[j]);
+			if ((*Child).Constraint == ConstraintStrings[i]) {
 				FoundCorrectChild = true;
-				CurrentRoot = Child;
-				if (Child.IsLeaf) {
+				CurrentRoot = &(*Child);
+				if ((*Child).IsLeaf) {
 					// Either the cone we are trying to add is the same cone, or it's smaller.
 					// If it's smaller, we don't want to add it.
 					if (i+1 != ConstraintStrings.size()) {
@@ -34,8 +41,9 @@ void InsertCone(Node &Tree, Cone &LeafCone) {
 					} else {
 						// Intersect all of the pre-intersect indices.
 						for (size_t k = 0; k != LeafCone.IntersectionIndices.size(); k++) {
-							(Child.LeafCone).IntersectionIndices[i] = IntersectSets((Child.LeafCone).IntersectionIndices[k], LeafCone.IntersectionIndices[k]);
+							((*Child).LeafCone).IntersectionIndices[k] = IntersectSets(((*Child).LeafCone).IntersectionIndices[k], LeafCone.IntersectionIndices[k]);
 						};
+						return;
 					};
 				};
 				break;
@@ -51,10 +59,8 @@ void InsertCone(Node &Tree, Cone &LeafCone) {
 				NewNode.IsLeaf = true;
 				NewNode.LeafCone = LeafCone;
 			};
-			CurrentRoot.Children.push_back(NewNode);
-			CurrentRoot = NewNode;
-		} else {
-			Children = CurrentRoot.Children;
+			(*CurrentRoot).Children.push_back(NewNode);
+			CurrentRoot = &((*CurrentRoot).Children[(*CurrentRoot).Children.size()-1]);
 		};
 	};
 };
