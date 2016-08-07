@@ -12,7 +12,7 @@ namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 //can cut off the children, because it contains its children.
 //The number of constraints varies, but it is >=dimension of the initial problem.
 
-void InsertCone(Node &Tree, Cone &LeafCone) {
+void InsertCone(Node &Tree, Cone &LeafCone, int HullIndex) {
 	vector<string> ConstraintStrings;
 	// Convert the constraints to a list of strings. Sort them by lex
 	Constraint_System cs = LeafCone.Polyhedron.minimized_constraints();
@@ -22,7 +22,6 @@ void InsertCone(Node &Tree, Cone &LeafCone) {
 		ss << (*i);
 		ConstraintStrings.push_back(ss.str());
 	};
-
 	sort(ConstraintStrings.begin(),ConstraintStrings.end());
 	Node *CurrentRoot = &Tree;
 	for (int i = 0; i != ConstraintStrings.size(); i++) {
@@ -36,13 +35,18 @@ void InsertCone(Node &Tree, Cone &LeafCone) {
 				if ((*Child).IsLeaf) {
 					// Either the cone we are trying to add is the same cone, or it's smaller.
 					// If it's smaller, we don't want to add it.
-					if (i+1 != ConstraintStrings.size()) {
-						return;
-					} else {
+					if (i+1 == ConstraintStrings.size()) {
 						// Intersect all of the pre-intersect indices.
-						for (size_t k = 0; k != LeafCone.IntersectionIndices.size(); k++) {
+						for (size_t k = HullIndex; k != LeafCone.IntersectionIndices.size(); k++) {
 							((*Child).LeafCone).IntersectionIndices[k] = IntersectSets(((*Child).LeafCone).IntersectionIndices[k], LeafCone.IntersectionIndices[k]);
 						};
+					};
+					return;
+				} else {
+					if (i+1 == ConstraintStrings.size()) {
+						(*Child).IsLeaf = true;
+						(*Child).LeafCone = LeafCone;
+						(*Child).Children.clear();
 						return;
 					};
 				};
