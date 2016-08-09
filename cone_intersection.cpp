@@ -295,7 +295,7 @@ int main(int argc, char* argv[]) {
 				vector<set<int> > InitialSet (Hulls.size());
 				Hulls[i].Edges[j].EdgeCone.IntersectionIndices = InitialSet;
 			};
-		};	
+		};
 		clock_t PreintTimeStart = clock();
 		int TotalInt = 0;
 		int NonInt = 0;
@@ -500,7 +500,6 @@ int main(int argc, char* argv[]) {
 	clock_t CleanupStart = clock();
 	vector<Generator> gv;
 	vector<Cone>::iterator PolyItr;
-	vector<vector<vector<GMP_Integer> > > InitialForms;
 	double AlgTime = double(clock() - AlgorithmStartTime);
 	// This is parsing and displaying all of the pretropisms.
 	for (PolyItr=ConeVector.begin(); PolyItr != ConeVector.end(); PolyItr++) {
@@ -512,34 +511,7 @@ int main(int argc, char* argv[]) {
 				continue;
 			};
 			if ( find(gv.begin(), gv.end(), gen) == gv.end() ) {
-				
-				vector<GMP_Integer> Pt = GeneratorToPoint(gen);
-				vector<Hull>::iterator HullItr;
-				vector<vector<GMP_Integer> > MyInitialForms;
-				for (HullItr=Hulls.begin(); HullItr != Hulls.end(); HullItr++) {
-					Hull MyHull = (*HullItr);
-					vector<vector<GMP_Integer> > TestPts = MyHull.Points;
-					vector<vector<GMP_Integer> > InForm = FindInitialForm(TestPts, Pt);
-					if (InForm.size() < 2) {
-						cout << "INTERNAL ERROR: Incorrect pretropism found" << endl;
-						PrintPoints(InForm);
-						cin.get();
-					};
-
-					vector<GMP_Integer> PtIndices;
-
-					vector<vector<GMP_Integer> >::iterator InFormIter;
-					for (InFormIter=InForm.begin(); InFormIter!=InForm.end(); InFormIter++) {
-						PtIndices.push_back(MyHull.PointToIndexMap[*InFormIter]);
-					}
-					sort(PtIndices.begin(),PtIndices.end());
-					MyInitialForms.push_back(PtIndices);
-				}
-				if (find(InitialForms.begin(), InitialForms.end(), MyInitialForms) == InitialForms.end() ) {
-					InitialForms.push_back(MyInitialForms);
 					gv.push_back(gen);
-//					cout << "Pretropism: " << gen << endl;
-				}
 			};
 		};
 	};
