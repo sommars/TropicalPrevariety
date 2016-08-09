@@ -17,9 +17,13 @@ using namespace Parma_Polyhedra_Library;
 using namespace tbb;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 
-double ListAppendTime, ContainmentTime, IntersectionTime, ParallelTime;
+double TreeTime1, TreeTime2, ContainmentTime, IntersectionTime, ParallelTime, TestTime;
 int ConeIntersectionCount;
 vector<Cone> ConeVector;
+//------------------------------------------------------------------------------				
+void PreintersectCones (Hull &H1, Hull &H2) {
+
+};
 
 //------------------------------------------------------------------------------
 struct c_poly_compare {
@@ -66,7 +70,7 @@ bool ConeSort(C_Polyhedron a, C_Polyhedron b) {
 	return a.affine_dimension() > b.affine_dimension();
 }
 
-// Globally:
+//------------------------------------------------------------------------------
 bool operator == (const Cone &L, const Cone &R)
 {
     return(L.Polyhedron == R.Polyhedron);
@@ -89,7 +93,6 @@ class IntersectTest {
 		Node Tree;
 		Tree.IsLeaf = false;
 		Cone NewCone = TestCones[ConeIndex];
-		int NumberOfHulls = NewCone.IntersectionIndices.size();
 		set<int> NewConeIntersectionIndices = NewCone.IntersectionIndices[HullIndex];
 		//take a random vector from cone		
 		vector<GMP_Integer> RandomVector(SpaceDimension, 0);
@@ -123,9 +126,10 @@ class IntersectTest {
 		set<int> PretropGraphEdges;
 		set<int> NotPretropGraphEdges;
 		vector<int> EdgesToTest;
+		Edge EdgeToTest;
+		int EdgeToTestIndex;
+		bool DoConeContainment;
 		while(!EdgesToTest.empty() || !InitialEdgesToTest.empty()) {
-			int EdgeToTestIndex;
-			bool DoConeContainment;
 			if (!InitialEdgesToTest.empty()) {
 				EdgeToTestIndex = InitialEdgesToTest.back();
 				InitialEdgesToTest.pop_back();
@@ -135,8 +139,9 @@ class IntersectTest {
 				EdgesToTest.pop_back();
 				DoConeContainment = false;
 			};
-			Edge EdgeToTest = Edges[EdgeToTestIndex];
-			
+			clock_t BeginTime = clock();
+			EdgeToTest = Edges[EdgeToTestIndex];
+			TestTime += double(clock() - BeginTime);
 			clock_t ContainmentBegin = clock();
 			// Only do the containment check if it's one of the initial edges.
 			bool ConeDoesContain = false;
@@ -146,7 +151,9 @@ class IntersectTest {
 			ContainmentTime += double(clock() - ContainmentBegin);
 			
 			if (ConeDoesContain) {
-				InsertCone(Tree,NewCone);
+				clock_t begin = clock();
+				InsertCone(Tree,NewCone,HullIndex+1);
+				TreeTime1 += double(clock() - begin);
 				break;
 			};
 			
@@ -154,6 +161,7 @@ class IntersectTest {
 
 			Constraint_System cs1 = EdgeToTest.EdgeCone.Polyhedron.minimized_constraints();
 			Constraint_System cs2 = NewCone.Polyhedron.minimized_constraints();
+			
 			for (Constraint_System::const_iterator i = cs1.begin(),
 			cs1_end = cs1.end(); i != cs1_end; ++i) {
 				cs2.insert(*i);
@@ -163,9 +171,9 @@ class IntersectTest {
 			C_Polyhedron TempCPolyhedron(cs2, dummy);
 			TempCone.Polyhedron = TempCPolyhedron;
 			TempCone.Polyhedron.affine_dimension();
-			IntersectionTime += double(clock() - IntBegin);
 			ConeIntersectionCount++;
 			int ExpectedDimension = min(EdgeToTest.EdgeCone.Polyhedron.affine_dimension(),NewCone.Polyhedron.affine_dimension()) - 1;
+			IntersectionTime += double(clock() - IntBegin);
 
 			if (ExpectedDimension <= TempCone.Polyhedron.affine_dimension()) {
 				PretropGraphEdges.insert(EdgeToTestIndex);
@@ -176,8 +184,8 @@ class IntersectTest {
 				for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
 					TempCone.IntersectionIndices[i] = IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
 				};
-				InsertCone(Tree, TempCone);
-				ListAppendTime += double(clock() - begin);
+				InsertCone(Tree, TempCone,HullIndex+1);
+				TreeTime1 += double(clock() - begin);
 				set<int>::iterator NeighborItr;
 				for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
 					int Neighbor = *NeighborItr;
@@ -192,7 +200,9 @@ class IntersectTest {
 			} else {
 				NotPretropGraphEdges.insert(EdgeToTestIndex);
 			};
+
 		};
+
 		Result[ConeIndex] = GetCones(Tree);
 	};
 }	
@@ -225,7 +235,10 @@ int main(int argc, char* argv[]) {
 		TestIndex++;
 	}
 	//sort( Hulls.begin(), Hulls.end(), HullSort);
-		
+	
+	double HullTime = double(clock() - StartTime);
+	clock_t AlgorithmStartTime = clock();
+	double PreintersectTime = 0;
 	if (string(argv[2]) == "refinement") {
 		// Start by initializing the objects.
 		vector<vector<Cone> > Cones;
@@ -310,7 +323,8 @@ int main(int argc, char* argv[]) {
 			printf("Finished level %d of pre-intersections.\n", i);
 		};
 		cout << "Total Intersections: " << TotalInt << ", Non Intersections: " << NonInt << endl;
-		cout << "Preintersection time: " << double(clock() - PreintTimeStart) / CLOCKS_PER_SEC << endl;
+		PreintersectTime = double(clock() - PreintTimeStart);
+		cout << "Preintersection time: " << PreintersectTime / CLOCKS_PER_SEC << endl;
 
 	
 		for (size_t HullIndex = 0; HullIndex != Hulls.size(); HullIndex++) {
@@ -337,17 +351,17 @@ int main(int argc, char* argv[]) {
 				ParallelTime += double(clock() - ParallelBegin);
 				Node Tree;
 				Tree.IsLeaf = false;
+				clock_t begin = clock();
 				for(size_t i = 0; i != ConeVector.size(); i++) {
 					vector<Cone> ConesToAdd = Arr[i];
 					vector<Cone>::iterator CPolyItr;
 					for(CPolyItr = ConesToAdd.begin(); CPolyItr != ConesToAdd.end(); CPolyItr++) {
 						Cone ConeToAdd = *CPolyItr;
-						clock_t begin = clock();
 
-						InsertCone(Tree,ConeToAdd);
-						ListAppendTime += clock() - begin;
+						InsertCone(Tree,ConeToAdd,HullIndex+1);
 					};
 				};
+				TreeTime2 += clock() - begin;
 				vector<Cone> NewCones = GetCones(Tree);
 				vector<Constraint> Constraints;/*
 				for(size_t i = 0; i != NewCones.size(); i++) {
@@ -376,7 +390,8 @@ int main(int argc, char* argv[]) {
 					};
 				};*/
 				cout << "Containment time: " << ContainmentTime / CLOCKS_PER_SEC << endl;
-				cout << "List append time: " << ListAppendTime / CLOCKS_PER_SEC << endl;
+				cout << "List append time for loop: " << TreeTime1 / CLOCKS_PER_SEC << endl;
+				cout << "List append time not in for loop: " << TreeTime2 / CLOCKS_PER_SEC << endl;
 				cout << "Intersection time: " << IntersectionTime / CLOCKS_PER_SEC << endl;
 				cout << "Parallel time: " << ParallelTime / CLOCKS_PER_SEC << endl;
 				cout << "Total elapsed time: " << double(clock() - StartTime) / CLOCKS_PER_SEC << endl;
@@ -421,7 +436,8 @@ int main(int argc, char* argv[]) {
 			printf("Finished level %d of pre-intersections.\n", i);
 		};
 		cout << "Total Intersections: " << TotalInt << ", Non Intersections: " << NonInt << endl;
-		cout << "Preintersection time: " << double(clock() - PreintTimeStart) / CLOCKS_PER_SEC << endl;
+		PreintersectTime = double(clock() - PreintTimeStart);
+		cout << "Preintersection time: " << PreintersectTime / CLOCKS_PER_SEC << endl;
 		vector<vector<int> > Cliques;
 		for (size_t i = 0; i != Hulls[0].Edges.size(); i++) {
 			vector<int> Clique;
@@ -481,10 +497,11 @@ int main(int argc, char* argv[]) {
 	};
 	
 	cout << "Finished intersecting cones." << endl << endl << endl;
+	clock_t CleanupStart = clock();
 	vector<Generator> gv;
 	vector<Cone>::iterator PolyItr;
 	vector<vector<vector<GMP_Integer> > > InitialForms;
-
+	double AlgTime = double(clock() - AlgorithmStartTime);
 	// This is parsing and displaying all of the pretropisms.
 	for (PolyItr=ConeVector.begin(); PolyItr != ConeVector.end(); PolyItr++) {
 		Generator_System gs = (*PolyItr).Polyhedron.minimized_generators();
@@ -527,9 +544,17 @@ int main(int argc, char* argv[]) {
 		};
 	};
 	cout << "Number of pretropisms found: " << gv.size() << endl;
+	cout << "Hull time: " << HullTime / CLOCKS_PER_SEC << endl;
 	cout << "Containment time: " << ContainmentTime / CLOCKS_PER_SEC << endl;
-	cout << "List append time: " << ListAppendTime / CLOCKS_PER_SEC << endl;
+	cout << "Tree append time for loop: " << TreeTime1 / CLOCKS_PER_SEC << endl;
+	cout << "Tree append time not in for loop: " << TreeTime2 / CLOCKS_PER_SEC << endl;
 	cout << "Intersection time: " << IntersectionTime / CLOCKS_PER_SEC << endl;
 	cout << "Parallel time: " << ParallelTime / CLOCKS_PER_SEC << endl;
+	cout << "Cleanup time: " << double(clock() - CleanupStart) / CLOCKS_PER_SEC << endl;
+	if (PreintersectTime != 0) {
+		cout << "Preintersection time: " << PreintersectTime / CLOCKS_PER_SEC << endl;
+	};
+	cout << "Alg time: " << AlgTime / CLOCKS_PER_SEC << endl;
+	cout << "Test time: " << TestTime / CLOCKS_PER_SEC << endl;
 	cout << "Number of intersections: " << ConeIntersectionCount << endl;
 }
