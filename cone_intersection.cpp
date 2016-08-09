@@ -17,7 +17,7 @@ using namespace Parma_Polyhedra_Library;
 using namespace tbb;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 
-double TreeTime1, TreeTime2, ContainmentTime, IntersectionTime, ParallelTime, TestTime;
+double TreeTime1, TreeTime2, ContainmentTime, IntersectionTime, ParallelTime, TestTime, GetConesTime;
 int ConeIntersectionCount;
 vector<Cone> ConeVector;
 //------------------------------------------------------------------------------				
@@ -90,6 +90,7 @@ class IntersectTest {
     void operator() (const blocked_range<size_t>& r ) const	
 {
 	for(size_t ConeIndex=r.begin(); ConeIndex != r.end(); ConeIndex++) {
+		Recycle_Input dummy;
 		Node Tree;
 		Tree.IsLeaf = false;
 		Cone NewCone = TestCones[ConeIndex];
@@ -166,7 +167,6 @@ class IntersectTest {
 			cs1_end = cs1.end(); i != cs1_end; ++i) {
 				cs2.insert(*i);
 			};
-			Recycle_Input dummy;
 			Cone TempCone;
 			C_Polyhedron TempCPolyhedron(cs2, dummy);
 			TempCone.Polyhedron = TempCPolyhedron;
@@ -207,6 +207,127 @@ class IntersectTest {
 	};
 }	
 };
+
+vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &Edges, vector<vector<GMP_Integer> > &Pts, map<vector<GMP_Integer>,GMP_Integer> &PointToIndexMap, vector<Cone> &TestCones)
+{
+	Node Tree;
+	Tree.IsLeaf = false;
+
+	for(size_t ConeIndex= 0; ConeIndex != TestCones.size(); ConeIndex++) {
+		Recycle_Input dummy;
+		Cone NewCone = TestCones[ConeIndex];
+		set<int> NewConeIntersectionIndices = NewCone.IntersectionIndices[HullIndex];
+		//take a random vector from cone		
+		vector<GMP_Integer> RandomVector(SpaceDimension, 0);
+		Generator_System gs = NewCone.Polyhedron.minimized_generators();
+		for (Generator_System::const_iterator i = gs.begin(),
+		gs_end = gs.end(); i != gs_end; ++i) {
+			for (size_t j = 0; j != SpaceDimension; j++) {
+				RandomVector[j] += (*i).coefficient(Variable(j));
+			};
+		};
+		//take initial form using that vector.
+		vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
+	
+		set<GMP_Integer> InitialIndices;
+		for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
+		InitialFormItr != InitialForm.end(); InitialFormItr++) {
+			InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
+		};
+	
+		// List of indices of edges to visit.
+		vector<int> InitialEdgesToTest;
+		for(size_t EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
+			if (SetsDoIntersect(InitialIndices, Edges[EdgeIndex].PointIndices)
+			&& ( find(NewConeIntersectionIndices.begin(), NewConeIntersectionIndices.end(), EdgeIndex) != NewConeIntersectionIndices.end())) {
+				InitialEdgesToTest.push_back(EdgeIndex);
+			};
+		};
+		
+		vector<Cone> NewCones;
+		// Explore edge skeleton
+		set<int> PretropGraphEdges;
+		set<int> NotPretropGraphEdges;
+		vector<int> EdgesToTest;
+		Edge EdgeToTest;
+		int EdgeToTestIndex;
+		bool DoConeContainment;
+		while(!EdgesToTest.empty() || !InitialEdgesToTest.empty()) {
+			if (!InitialEdgesToTest.empty()) {
+				EdgeToTestIndex = InitialEdgesToTest.back();
+				InitialEdgesToTest.pop_back();
+				DoConeContainment = true;
+			} else {
+				EdgeToTestIndex = EdgesToTest.back();
+				EdgesToTest.pop_back();
+				DoConeContainment = false;
+			};
+			clock_t BeginTime = clock();
+			EdgeToTest = Edges[EdgeToTestIndex];
+			TestTime += double(clock() - BeginTime);
+			clock_t ContainmentBegin = clock();
+			// Only do the containment check if it's one of the initial edges.
+			bool ConeDoesContain = false;
+			if (DoConeContainment) {
+				ConeDoesContain = EdgeToTest.EdgeCone.Polyhedron.contains(NewCone.Polyhedron);
+			};
+			ContainmentTime += double(clock() - ContainmentBegin);
+			
+			if (ConeDoesContain) {
+				clock_t begin = clock();
+				InsertCone(Tree,NewCone,HullIndex+1);
+				TreeTime1 += double(clock() - begin);
+				break;
+			};
+			
+			clock_t IntBegin = clock();
+
+			Constraint_System cs1 = EdgeToTest.EdgeCone.Polyhedron.minimized_constraints();
+			Constraint_System cs2 = NewCone.Polyhedron.minimized_constraints();
+			
+			for (Constraint_System::const_iterator i = cs1.begin(),
+			cs1_end = cs1.end(); i != cs1_end; ++i) {
+				cs2.insert(*i);
+			};
+			Cone TempCone;
+			C_Polyhedron TempCPolyhedron(cs2, dummy);
+			TempCone.Polyhedron = TempCPolyhedron;
+			TempCone.Polyhedron.affine_dimension();
+			ConeIntersectionCount++;
+			int ExpectedDimension = min(EdgeToTest.EdgeCone.Polyhedron.affine_dimension(),NewCone.Polyhedron.affine_dimension()) - 1;
+			IntersectionTime += double(clock() - IntBegin);
+
+			if (ExpectedDimension <= TempCone.Polyhedron.affine_dimension()) {
+				PretropGraphEdges.insert(EdgeToTestIndex);
+			
+				clock_t begin = clock();
+				vector<set<int> > InitialSet (NewCone.IntersectionIndices.size());
+				TempCone.IntersectionIndices = InitialSet;
+				for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
+					TempCone.IntersectionIndices[i] = IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
+				};
+				InsertCone(Tree, TempCone,HullIndex+1);
+				TreeTime1 += double(clock() - begin);
+				set<int>::iterator NeighborItr;
+				for(NeighborItr=EdgeToTest.NeighborIndices.begin();NeighborItr!=EdgeToTest.NeighborIndices.end(); NeighborItr++){
+					int Neighbor = *NeighborItr;
+					if (( find(NewConeIntersectionIndices.begin(), NewConeIntersectionIndices.end(), Neighbor) != NewConeIntersectionIndices.end())
+					&& ( find(PretropGraphEdges.begin(), PretropGraphEdges.end(), Neighbor) == PretropGraphEdges.end() )
+					&& ( find(NotPretropGraphEdges.begin(), NotPretropGraphEdges.end(), Neighbor) == NotPretropGraphEdges.end() )
+					&& ( find(EdgesToTest.begin(), EdgesToTest.end(), Neighbor) == EdgesToTest.end() )
+					&& ( find(InitialEdgesToTest.begin(), InitialEdgesToTest.end(), Neighbor) == InitialEdgesToTest.end() )) {
+						EdgesToTest.push_back(Neighbor);
+					};
+				};
+			} else {
+				NotPretropGraphEdges.insert(EdgeToTestIndex);
+			};
+
+		};
+	};
+	return GetCones(Tree);
+}
+
 
 //------------------------------------------------------------------------------
 bool HullSort(Hull a, Hull b) {
@@ -341,28 +462,14 @@ int main(int argc, char* argv[]) {
 					ConeVector.push_back((*itr).EdgeCone);
 				};
 			} else {
-				vector<Cone>::iterator ConeIterator;
-	
-	
-				vector<vector<Cone> > Arr(ConeVector.size());
-				task_scheduler_init init(1);
-				clock_t ParallelBegin = clock();
-				parallel_for(blocked_range<size_t>(0,ConeVector.size()),IntersectTest(H.SpaceDimension, HullIndex,Edges,Pts,PointToIndexMap,ConeVector,Arr));
-				ParallelTime += double(clock() - ParallelBegin);
-				Node Tree;
-				Tree.IsLeaf = false;
-				clock_t begin = clock();
-				for(size_t i = 0; i != ConeVector.size(); i++) {
-					vector<Cone> ConesToAdd = Arr[i];
-					vector<Cone>::iterator CPolyItr;
-					for(CPolyItr = ConesToAdd.begin(); CPolyItr != ConesToAdd.end(); CPolyItr++) {
-						Cone ConeToAdd = *CPolyItr;
 
-						InsertCone(Tree,ConeToAdd,HullIndex+1);
-					};
-				};
+				clock_t ParallelBegin = clock();
+				vector<Cone> NewCones = IntersectTestTwo(H.SpaceDimension, HullIndex, Edges, Pts, PointToIndexMap, ConeVector);
+				ParallelTime += double(clock() - ParallelBegin);
+				clock_t begin = clock();
 				TreeTime2 += clock() - begin;
-				vector<Cone> NewCones = GetCones(Tree);
+				clock_t GetConeTimeBegin = clock();
+				GetConesTime += double(clock() - GetConeTimeBegin);
 				vector<Constraint> Constraints;/*
 				for(size_t i = 0; i != NewCones.size(); i++) {
 					Constraint_System cstest = NewCones[i].Polyhedron.minimized_constraints();
@@ -523,6 +630,7 @@ int main(int argc, char* argv[]) {
 	cout << "Intersection time: " << IntersectionTime / CLOCKS_PER_SEC << endl;
 	cout << "Parallel time: " << ParallelTime / CLOCKS_PER_SEC << endl;
 	cout << "Cleanup time: " << double(clock() - CleanupStart) / CLOCKS_PER_SEC << endl;
+	cout << "GetCones time: " << GetConesTime / CLOCKS_PER_SEC << endl;
 	if (PreintersectTime != 0) {
 		cout << "Preintersection time: " << PreintersectTime / CLOCKS_PER_SEC << endl;
 	};
