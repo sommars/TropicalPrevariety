@@ -15,7 +15,7 @@ class Node {
 };
 
 //------------------------------------------------------------------------------
-void InsertCone(Node &Tree, Cone &LeafCone);
+void InsertCone(Node &Tree, Cone &LeafCone, int HullIndex));
 
 //------------------------------------------------------------------------------
 vector<Cone> GetCones(Node &Tree);
