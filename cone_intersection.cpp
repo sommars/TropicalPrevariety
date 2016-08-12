@@ -36,18 +36,18 @@ struct c_poly_compare {
 };
 
 //------------------------------------------------------------------------------
-vector<vector<vector<GMP_Integer> > > CyclicN(int n, bool Reduced) {
-	vector<vector<vector<GMP_Integer> > > System;
+vector<vector<vector<int> > > CyclicN(int n, bool Reduced) {
+	vector<vector<vector<int> > > System;
 	int Length = n;
 	if (Reduced == true) {
 		Length = n - 1;
 	};
 	
 	for (size_t i = 0; i != n-1; i++) {
-		vector<vector<GMP_Integer> > Equation;
+		vector<vector<int> > Equation;
 		for (size_t j = 0; j != n; j++) {
-			vector<GMP_Integer> Monomial;
-			set<GMP_Integer> OneSet;
+			vector<int> Monomial;
+			set<int> OneSet;
 			for (size_t k = 0; k != i+1; k++) {
 				OneSet.insert((j+k)%n);
 			};
@@ -81,12 +81,12 @@ class IntersectTest {
 	int SpaceDimension;
 	int HullIndex;
 	vector<Edge> &Edges;
-	vector<vector<GMP_Integer> > &Pts;
-	map<vector<GMP_Integer>,GMP_Integer> &PointToIndexMap;
+	vector<vector<int> > &Pts;
+	map<vector<int>,int> &PointToIndexMap;
 	vector<Cone> &TestCones;
 	vector<vector<Cone> > &Result;
 	public:
-		IntersectTest(int dim, int hi, vector<Edge> &e, vector<vector<GMP_Integer> > &pts, map<vector<GMP_Integer>,GMP_Integer> &ptmap, vector<Cone> &cones, vector<vector<Cone> > &output): SpaceDimension(dim), HullIndex(hi), Edges(e), Pts(pts), PointToIndexMap(ptmap), TestCones(cones), Result(output) { }
+		IntersectTest(int dim, int hi, vector<Edge> &e, vector<vector<int> > &pts, map<vector<int>,int> &ptmap, vector<Cone> &cones, vector<vector<Cone> > &output): SpaceDimension(dim), HullIndex(hi), Edges(e), Pts(pts), PointToIndexMap(ptmap), TestCones(cones), Result(output) { }
     void operator() (const blocked_range<size_t>& r ) const	
 {
 	for(size_t ConeIndex=r.begin(); ConeIndex != r.end(); ConeIndex++) {
@@ -96,19 +96,23 @@ class IntersectTest {
 		Cone NewCone = TestCones[ConeIndex];
 		set<int> NewConeIntersectionIndices = NewCone.IntersectionIndices[HullIndex];
 		//take a random vector from cone		
-		vector<GMP_Integer> RandomVector(SpaceDimension, 0);
+		vector<int> RandomVector(SpaceDimension, 0);
 		Generator_System gs = NewCone.Polyhedron.minimized_generators();
 		for (Generator_System::const_iterator i = gs.begin(),
 		gs_end = gs.end(); i != gs_end; ++i) {
 			for (size_t j = 0; j != SpaceDimension; j++) {
-				RandomVector[j] += (*i).coefficient(Variable(j));
+				stringstream s;
+				s << (*i).coefficient(Variable(j));
+				int ToAppend;
+				istringstream(s.str()) >> ToAppend;
+				RandomVector[j] += ToAppend;
 			};
 		};
 		//take initial form using that vector.
-		vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
+		vector<vector<int> > InitialForm = FindInitialForm(Pts, RandomVector);
 	
-		set<GMP_Integer> InitialIndices;
-		for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
+		set<int> InitialIndices;
+		for (vector<vector<int> >::iterator InitialFormItr=InitialForm.begin();
 		InitialFormItr != InitialForm.end(); InitialFormItr++) {
 			InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
 		};
@@ -208,7 +212,7 @@ class IntersectTest {
 }	
 };
 
-vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &Edges, vector<vector<GMP_Integer> > &Pts, map<vector<GMP_Integer>,GMP_Integer> &PointToIndexMap, vector<Cone> &TestCones)
+vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &Edges, vector<vector<int> > &Pts, map<vector<int>,int> &PointToIndexMap, vector<Cone> &TestCones)
 {
 	Node Tree;
 	Tree.IsLeaf = false;
@@ -218,19 +222,23 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 		Cone NewCone = TestCones[ConeIndex];
 		set<int> NewConeIntersectionIndices = NewCone.IntersectionIndices[HullIndex];
 		//take a random vector from cone		
-		vector<GMP_Integer> RandomVector(SpaceDimension, 0);
+		vector<int> RandomVector(SpaceDimension, 0);
 		Generator_System gs = NewCone.Polyhedron.minimized_generators();
 		for (Generator_System::const_iterator i = gs.begin(),
 		gs_end = gs.end(); i != gs_end; ++i) {
 			for (size_t j = 0; j != SpaceDimension; j++) {
-				RandomVector[j] += (*i).coefficient(Variable(j));
+				stringstream s;
+				s << (*i).coefficient(Variable(j));
+				int ToAppend;
+				istringstream(s.str()) >> ToAppend;
+				RandomVector[j] += ToAppend;
 			};
 		};
 		//take initial form using that vector.
-		vector<vector<GMP_Integer> > InitialForm = FindInitialForm(Pts, RandomVector);
+		vector<vector<int> > InitialForm = FindInitialForm(Pts, RandomVector);
 	
-		set<GMP_Integer> InitialIndices;
-		for (vector<vector<GMP_Integer> >::iterator InitialFormItr=InitialForm.begin();
+		set<int> InitialIndices;
+		for (vector<vector<int> >::iterator InitialFormItr=InitialForm.begin();
 		InitialFormItr != InitialForm.end(); InitialFormItr++) {
 			InitialIndices.insert(PointToIndexMap[*InitialFormItr]);
 		};
@@ -344,12 +352,12 @@ int main(int argc, char* argv[]) {
 	int n = atoi(argv[1]);
 	bool Reduced = true;
 	vector<Hull> Hulls;
-	vector<vector<vector<GMP_Integer> > > Cyc4 = CyclicN(n,Reduced);
+	vector<vector<vector<int> > > Cyc4 = CyclicN(n,Reduced);
 	if (Reduced == true) {
 		n = n - 1;
 	};
 	
-	vector<vector<vector<GMP_Integer> > >::iterator CycIt;
+	vector<vector<vector<int> > >::iterator CycIt;
 	int TestIndex = 0;
 	for (CycIt=Cyc4.begin(); CycIt != Cyc4.end(); CycIt++) {
 		Hulls.push_back(NewHull(*CycIt));
@@ -452,8 +460,8 @@ int main(int argc, char* argv[]) {
 			Hull H = Hulls[HullIndex];
 			vector<Edge> Edges = H.Edges;
 			vector<Facet> Facets = H.Facets;
-			map<vector<GMP_Integer>,GMP_Integer> PointToIndexMap = H.PointToIndexMap;
-			vector<vector<GMP_Integer> > Pts = H.Points;
+			map<vector<int>,int> PointToIndexMap = H.PointToIndexMap;
+			vector<vector<int> > Pts = H.Points;
 			
 			//Initialize ConeVector if it's the first convex hull.
 			if (HullIndex == 0) {
@@ -485,7 +493,7 @@ int main(int argc, char* argv[]) {
 				/*
 				//TODO: constraint relation table.
 				//TODO: think about using affine_image to do dimension reduction.
-				//TODO: try using standard integer instead of GMP_Integer
+				//TODO: try using standard integer instead of int
 				
 				for(size_t i = 0; i != NewCones.size(); i++){
 					Constraint_System cstest = NewCones[i].minimized_constraints();
