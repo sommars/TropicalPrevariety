@@ -2,6 +2,7 @@
 #include <iostream>
 #include <list>
 #include <stdio.h>
+#include <string>
 using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
@@ -37,38 +38,59 @@ Cone IntersectCones(Cone C1, Cone C2) {
 }
 
 //------------------------------------------------------------------------------
-vector<GMP_Integer> GeneratorToPoint(Generator g) { //page 251
-	vector<GMP_Integer> Result;
+vector<int> GeneratorToPoint(Generator g) { //page 251
+	vector<int> Result;
 	for (size_t i = 0; i < g.space_dimension(); i++) {
-		Result.push_back((g).coefficient(Variable(i)));
+		stringstream s;
+		s << (g).coefficient(Variable(i));
+		int ToAppend;
+		istringstream(s.str()) >> ToAppend;
+		Result.push_back(ToAppend);
 	}
 
 	return Result;
 }
 
 //------------------------------------------------------------------------------
-vector<vector<GMP_Integer> > GeneratorSystemToPoints(Generator_System gs) {
-	vector<vector<GMP_Integer> > Result;
+vector<int> GeneratorToIntPoint(Generator g) { //page 251
+	vector<int> Result;
+	for (size_t i = 0; i < g.space_dimension(); i++) {
+		stringstream s;
+		s << (g).coefficient(Variable(i));
+		int ToAppend;
+		istringstream(s.str()) >> ToAppend;
+		Result.push_back(ToAppend);
+	}
+
+	return Result;
+}
+
+//------------------------------------------------------------------------------
+vector<vector<int> > GeneratorSystemToPoints(Generator_System gs) {
+	vector<vector<int> > Result;
 	for (Generator_System::const_iterator i = gs.begin(),
 	gs_end = gs.end(); i != gs_end; ++i) {
 		Result.push_back(GeneratorToPoint(*i));
 	}
-	
 	return Result;
 }
 
 //------------------------------------------------------------------------------
-vector<GMP_Integer> ConstraintToPoint(Constraint c) { //page 251
-	vector<GMP_Integer> Result;
+vector<int> ConstraintToPoint(Constraint c) { //page 251
+	vector<int> Result;
 	for (size_t i = 0; i < c.space_dimension(); i++) {
-		Result.push_back((c).coefficient(Variable(i)));
+		stringstream s;
+		s << (c).coefficient(Variable(i));
+		int ToAppend;
+		istringstream(s.str()) >> ToAppend;
+		Result.push_back(ToAppend);
 	}
 
 	return Result;
 }
 
 //------------------------------------------------------------------------------
-Hull NewHull(vector<vector<GMP_Integer> > Points) {
+Hull NewHull(vector<vector<int> > Points) {
 	Hull H;
 
 	H.CPolyhedron = FindCPolyhedron(Points);
@@ -92,7 +114,7 @@ Hull NewHull(vector<vector<GMP_Integer> > Points) {
 	
 	// Create PointToIndexMap
 	for (size_t i = 0; i != H.Points.size(); i++) {
-		vector<GMP_Integer> Point = H.Points[i];
+		vector<int> Point = H.Points[i];
 		H.PointToIndexMap[Point]=i;
 	};
 
@@ -112,7 +134,7 @@ vector<Facet> FindFacets(Hull H) {
 	// Find the Facets by shooting rays at the polytopes
 	// spin through all of the constraints. shoot each constraint at the polytope.
 	C_Polyhedron ph = H.CPolyhedron;
-	vector<vector<GMP_Integer> > Points = H.Points;
+	vector<vector<int> > Points = H.Points;
 	vector<Facet> Facets;
 	Constraint_System cs = ph.minimized_constraints();
 	
@@ -121,11 +143,11 @@ vector<Facet> FindFacets(Hull H) {
 		if (!(*i).is_inequality()) {
 			continue;
 		};
-		vector<GMP_Integer> Pt = ConstraintToPoint(*i);
-		vector<vector<GMP_Integer> > FacetPts = FindInitialForm(Points, Pt);
+		vector<int> Pt = ConstraintToPoint(*i);
+		vector<vector<int> > FacetPts = FindInitialForm(Points, Pt);
 		Facet F;
 		Generator_System gs;
-		vector<GMP_Integer>::iterator it;
+		vector<int>::iterator it;
 		Linear_Expression RayLE;
 		Linear_Expression PointLE;
 		for(size_t VarIndex = 0; VarIndex != Pt.size(); VarIndex++) {
@@ -137,7 +159,7 @@ vector<Facet> FindFacets(Hull H) {
 
 		F.Generators = C_Polyhedron(gs).minimized_generators();
 		
-		vector<vector<GMP_Integer> >::iterator itr;
+		vector<vector<int> >::iterator itr;
 		
 		for (itr=FacetPts.begin(); itr != FacetPts.end(); itr++) {
 			F.PointIndices.insert(H.PointToIndexMap[*itr]);
@@ -150,24 +172,24 @@ vector<Facet> FindFacets(Hull H) {
 //------------------------------------------------------------------------------
 vector<Edge> FindEdges(Hull H) {
 	vector<Facet> Facets = H.Facets;
-	vector<vector<GMP_Integer> > Points = H.Points;
-	vector<vector<GMP_Integer> > CandidateEdges = FindCandidateEdges(H);
+	vector<vector<int> > Points = H.Points;
+	vector<vector<int> > CandidateEdges = FindCandidateEdges(H);
 	vector<Edge> Edges;
 
 	//The number of facets we want is equal to the dimension of the ambient space minus the number of equations -1
 	Constraint_System cs = H.CPolyhedron.minimized_constraints();
 	int Dim = H.CPolyhedron.affine_dimension() - 1;
 
-	vector<vector<GMP_Integer> >::iterator itr;
+	vector<vector<int> >::iterator itr;
 	for (itr=CandidateEdges.begin(); itr != CandidateEdges.end(); itr++) {
-		vector<GMP_Integer> CandidateEdge = (*itr);
-		GMP_Integer Point1 = CandidateEdge[0];
-		GMP_Integer Point2 = CandidateEdge[1];
+		vector<int> CandidateEdge = (*itr);
+		int Point1 = CandidateEdge[0];
+		int Point2 = CandidateEdge[1];
 
 		int FacetCount = 0;
 		Generator_System gs;
 		for (vector<Facet>::iterator FacetIt=Facets.begin(); FacetIt != Facets.end(); FacetIt++) {
-			set<GMP_Integer> PtIndices = (*FacetIt).PointIndices;
+			set<int> PtIndices = (*FacetIt).PointIndices;
 			bool Point1IsInFacet = PtIndices.find(Point1) != PtIndices.end();
 			bool Point2IsInFacet = PtIndices.find(Point2) != PtIndices.end();
 			if (Point1IsInFacet and Point2IsInFacet) {
@@ -225,8 +247,8 @@ vector<Edge> FindEdges(Hull H) {
 }
 
 //------------------------------------------------------------------------------
-vector<vector<GMP_Integer> > FindCandidateEdges(Hull H) {
-	vector<vector<GMP_Integer> > CandidateEdges;
+vector<vector<int> > FindCandidateEdges(Hull H) {
+	vector<vector<int> > CandidateEdges;
 	int n = H.Points.size();
 	vector<int> d(n);
 	for (size_t i = 0; i != d.size(); ++i) {
@@ -234,7 +256,7 @@ vector<vector<GMP_Integer> > FindCandidateEdges(Hull H) {
 	}
 	do {
 		if (d[0] < d[1]) {
-			vector<GMP_Integer> CandidateEdgeIndices;
+			vector<int> CandidateEdgeIndices;
 			CandidateEdgeIndices.push_back(d[0]);
 			CandidateEdgeIndices.push_back(d[1]);
 			CandidateEdges.push_back(CandidateEdgeIndices);
@@ -245,7 +267,7 @@ vector<vector<GMP_Integer> > FindCandidateEdges(Hull H) {
 }
 
 //------------------------------------------------------------------------------
-GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
+int InnerProduct(vector<int> V1, vector<int> V2) {
 	/* 
 		Computes the inner product of two vectors.
 	*/
@@ -253,7 +275,7 @@ GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
 		cout << "Internal Error: InnerProduct with different sizes" << endl;
 		cin.get();
 	};
-	GMP_Integer Result = 0;
+	int Result = 0;
 	for (size_t i = 0; i != V1.size(); i++) {
 		Result += V1[i] * V2[i];
 	}
@@ -261,21 +283,21 @@ GMP_Integer InnerProduct(vector<GMP_Integer> V1, vector<GMP_Integer> V2) {
 }
 
 //------------------------------------------------------------------------------
-vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > &Points, vector<GMP_Integer> &Vector) {
+vector<vector<int> > FindInitialForm(vector<vector<int> > &Points, vector<int> &Vector) {
 	/*
 		Computes the initial form of a vector and a set of points.
 	*/
 	if (Points.size() == 0) {
 		return Points;
 	};
-	vector<vector<GMP_Integer> > InitialForm;
+	vector<vector<int> > InitialForm;
 
 	InitialForm.push_back(Points[0]);
-	GMP_Integer MinimalIP = InnerProduct(Vector, Points[0]);
+	int MinimalIP = InnerProduct(Vector, Points[0]);
 
 	for (size_t i = 1; i != Points.size(); i++) {
-		vector<GMP_Integer> Point = Points[i];
-		GMP_Integer IP = InnerProduct(Vector, Point);
+		vector<int> Point = Points[i];
+		int IP = InnerProduct(Vector, Point);
 		if (MinimalIP > IP) {
 			MinimalIP = IP;
 			InitialForm.clear();
@@ -289,11 +311,11 @@ vector<vector<GMP_Integer> > FindInitialForm(vector<vector<GMP_Integer> > &Point
 }
 
 //------------------------------------------------------------------------------
-C_Polyhedron FindCPolyhedron(vector<vector<GMP_Integer> > Points) {
+C_Polyhedron FindCPolyhedron(vector<vector<int> > Points) {
 	Generator_System gs;
-	vector<vector<GMP_Integer> >::iterator itr;
+	vector<vector<int> >::iterator itr;
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
-		vector<GMP_Integer> Point = *itr;
+		vector<int> Point = *itr;
 		Linear_Expression LE;
 		for (size_t i = 0; i != Point.size(); i++) {
 			LE = LE + Variable(i) * (Point[i]);
@@ -316,18 +338,8 @@ void PrintPoint(vector<int> Point) {
 }
 
 //------------------------------------------------------------------------------
-void PrintPoint(vector<GMP_Integer> Point) {
-	vector<GMP_Integer>::iterator it;
-	cout << "{ ";
-	for (it=Point.begin(); it != Point.end(); it++) {
-		cout << (*it) << " ";
-	}
-	cout << "}" << endl;
-}
-
-//------------------------------------------------------------------------------
-void PrintPoints(vector<vector<GMP_Integer> > Points) {
-	vector<vector<GMP_Integer> >::iterator itr;
+void PrintPoints(vector<vector<int> > Points) {
+	vector<vector<int> >::iterator itr;
 	for (itr=Points.begin(); itr != Points.end(); itr++) {
 		PrintPoint(*itr);
 	};
@@ -336,16 +348,6 @@ void PrintPoints(vector<vector<GMP_Integer> > Points) {
 //------------------------------------------------------------------------------
 void PrintPoint(set<int> Point) {
 	set<int>::iterator it;
-	cout << "{ ";
-	for (it=Point.begin(); it != Point.end(); it++) {
-		cout << (*it) << " ";
-	}
-	cout << "}" << endl;
-}
-
-//------------------------------------------------------------------------------
-void PrintPoint(set<GMP_Integer> Point) {
-	set<GMP_Integer>::iterator it;
 	cout << "{ ";
 	for (it=Point.begin(); it != Point.end(); it++) {
 		cout << (*it) << " ";
@@ -368,10 +370,10 @@ void PrintCPolyhedrons(vector<C_Polyhedron> phs, bool PrintIf0Dim) {
 }
 
 //------------------------------------------------------------------------------
-set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2) {
-	set<GMP_Integer>::iterator S1Itr = S1.begin();
-	set<GMP_Integer>::iterator S2Itr = S2.begin();
-	set<GMP_Integer> Result;
+set<int> IntersectSets(set<int> S1, set<int> S2) {
+	set<int>::iterator S1Itr = S1.begin();
+	set<int>::iterator S2Itr = S2.begin();
+	set<int> Result;
 	while ((S1Itr != S1.end()) && (S2Itr != S2.end())) {
 		if (*S1Itr < *S2Itr) {
 			++S1Itr;
@@ -388,9 +390,9 @@ set<GMP_Integer> IntersectSets(set<GMP_Integer> S1, set<GMP_Integer> S2) {
 }
 
 //------------------------------------------------------------------------------
-bool SetsDoIntersect(set<GMP_Integer> &S1, set<GMP_Integer> &S2) {
-	set<GMP_Integer>::iterator S1Itr = S1.begin();
-	set<GMP_Integer>::iterator S2Itr = S2.begin();
+bool SetsDoIntersect(set<int> &S1, set<int> &S2) {
+	set<int>::iterator S1Itr = S1.begin();
+	set<int>::iterator S2Itr = S2.begin();
 	while ((S1Itr != S1.end()) && (S2Itr != S2.end())) {
 		if (*S1Itr < *S2Itr) {
 			++S1Itr;
