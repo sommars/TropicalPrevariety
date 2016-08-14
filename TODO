@@ -3,3 +3,4 @@ Switch to half open cones
 Build relation tables with individual constraints
 Write own cone intersection library.
 Improve memory consumption (PPL objects may be too big. Lots of duplication of generators)
+Do better than linear searching nodes of tree
