@@ -27,38 +27,66 @@ void InsertCone(Node &Tree, Cone &LeafCone, int HullIndex) {
 	
 	// Bite off p(0).
 	GeneratorStrings.erase(remove(GeneratorStrings.begin(), GeneratorStrings.end(), "p(0)"),GeneratorStrings.end());
+	
 	Node *CurrentRoot = &Tree;
-	for (size_t i = 0; i != GeneratorStrings.size(); i++) {
-		Node Child;
-		Child.Generator = GeneratorStrings[i];
-		if (i+1 == GeneratorStrings.size()) {
-			Child.IsLeaf = true;
-			Child.LeafCone = LeafCone;
-		} else {
-			Child.IsLeaf = false;
+	for (int i = 0; i != GeneratorStrings.size(); i++) {
+		bool FoundCorrectChild = false;
+		bool IsLastLoop = i+1 == GeneratorStrings.size();
+		vector<Node> *Children = &(*CurrentRoot).Children;
+		for (int j = 0; j != (*Children).size(); j++) {
+			Node *Child = &((*Children)[j]);
+			if ((*Child).Generator == GeneratorStrings[i]) {
+				FoundCorrectChild = true;
+				CurrentRoot = Child;
+				if (IsLastLoop) {
+					if ((*Child).IsLeaf) {
+						for (size_t k = HullIndex; k != LeafCone.IntersectionIndices.size(); k++) {
+							((*Child).LeafCone).IntersectionIndices[k] = IntersectSets(((*Child).LeafCone).IntersectionIndices[k], LeafCone.IntersectionIndices[k]);
+						};
+					} else {
+						(*Child).IsLeaf = true;
+						(*Child).LeafCone = LeafCone;
+					};
+					return;
+				};
+				break;
+			};
 		};
-		pair<map<string, Node>::iterator,bool> ret;
-		ret = (*CurrentRoot).Children.insert(pair<string,Node>(GeneratorStrings[i], Child));
-		map<string, Node> *Children = &(*CurrentRoot).Children;
-		
-		CurrentRoot = ((*Children)[GeneratorStrings[i]]);
+		if (!FoundCorrectChild) {
+			Node NewNode;
+			NewNode.Generator = GeneratorStrings[i];
+			// Set the leaf properties correctly, if it is a leaf.
+			if (!IsLastLoop) {
+				NewNode.IsLeaf = false;
+			} else {
+				NewNode.IsLeaf = true;
+				NewNode.LeafCone = LeafCone;
+			};
+			(*CurrentRoot).Children.push_back(NewNode);
+			CurrentRoot = &((*CurrentRoot).Children[(*CurrentRoot).Children.size()-1]);
+		};
 	};
 };
 
 //------------------------------------------------------------------------------
-vector<Cone> GetCones(Node &Tree) {
-	//TODO: CHANGE GETCONES: make the list at the same time as the tree is made. can't store index because that will get stale. do erase find paradigm.
-
+vector<Cone> GetCones(Node &Tree, int HullIndex) {
 	vector<Cone> Result;
-	/*
+	
 	if (Tree.IsLeaf) {
-		Result.push_back(Tree.LeafCone);
+		bool ShouldAddCone = true;
+		for (size_t k = HullIndex; k != Tree.LeafCone.IntersectionIndices.size(); k++) {
+			if (Tree.LeafCone.IntersectionIndices[k].size() == 0) {
+				ShouldAddCone = false;
+			};
+		};
+		if (ShouldAddCone) {
+			Result.push_back(Tree.LeafCone);
+		};
 	};
-	set<Node>::iterator ChildItr;
-	for (ChildItr = Tree.Children.begin(); ChildItr != Tree.Children.end(); ChildItr++) {
-		Node Child = *ChildItr;
-		vector<Cone> NewCones = GetCones(Child);
+	for (size_t i = 0; i != Tree.Children.size(); i++) {
+		vector<Cone> NewCones = GetCones(Tree.Children[i], HullIndex);
 		Result.insert(Result.end(), NewCones.begin(), NewCones.end());
-	};*/
+	};
+	
 	return Result;
 };
