@@ -4,3 +4,4 @@ Build relation tables with individual constraints
 Write own cone intersection library.
 Improve memory consumption (PPL objects may be too big. Lots of duplication of generators)
 Do better than linear searching nodes of tree
+http://data.math.au.dk/publications/phd/2007/imf-phd-2007-anj.pdf
