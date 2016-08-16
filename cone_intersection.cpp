@@ -186,7 +186,7 @@ class IntersectTest {
 				vector<set<int> > InitialSet (NewCone.IntersectionIndices.size());
 				TempCone.IntersectionIndices = InitialSet;
 				for (size_t i = HullIndex + 1; i != NewCone.IntersectionIndices.size(); i++) {
-					TempCone.IntersectionIndices[i] = IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
+					TempCone.IntersectionIndices[i] =  IntersectSets(EdgeToTest.EdgeCone.IntersectionIndices[i], NewCone.IntersectionIndices[i]);
 				};
 				InsertCone(Tree, TempCone,HullIndex+1);
 				TreeTime1 += double(clock() - begin);
@@ -207,7 +207,7 @@ class IntersectTest {
 
 		};
 
-		Result[ConeIndex] = GetCones(Tree);
+		Result[ConeIndex] = GetCones(Tree, HullIndex+1);
 	};
 }	
 };
@@ -333,7 +333,10 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 
 		};
 	};
-	return GetCones(Tree);
+	clock_t BeginGetConesTime = clock();
+	vector<Cone> Cones = GetCones(Tree, HullIndex + 1);
+	GetConesTime += double(clock() - BeginGetConesTime);
+	return Cones;
 }
 
 
@@ -513,7 +516,7 @@ int main(int argc, char* argv[]) {
 				//cout << "ConstraintCount: " << Constraints.size() << endl;
 				ConeVector = NewCones;
 			};
-			printf("Finished level %lu of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", HullIndex, Hulls.size(), ConeVector.size(),ConeIntersectionCount);
+			printf("Finished level %lu of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", HullIndex, Hulls.size()-1, ConeVector.size(),ConeIntersectionCount);
 		};
 		cout << "ConeVector count: " << ConeVector.size() << endl;
 	}
