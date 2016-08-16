@@ -6,16 +6,17 @@ using namespace std;
 using namespace Parma_Polyhedra_Library;
 namespace Parma_Polyhedra_Library {using IO_Operators::operator<<;}
 
+
 class Node {
 	public:
 		vector<Node> Children;
 		bool IsLeaf;
-		string Constraint;
+		string Generator;
 		Cone LeafCone;
 };
 
 //------------------------------------------------------------------------------
-void InsertCone(Node &Tree, Cone &LeafCone, int HullIndex));
+void InsertCone(Node &Tree, Cone &LeafCone, int HullIndex);
 
 //------------------------------------------------------------------------------
-vector<Cone> GetCones(Node &Tree);
+vector<Cone> GetCones(Node &Tree, int HullIndex);
