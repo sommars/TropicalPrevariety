@@ -82,6 +82,9 @@ void PrintPoints(vector<vector<int> > Points);
 void PrintPoint(set<int> Point);
 
 //------------------------------------------------------------------------------
+void PrintPoint(vector<int> Point);
+
+//------------------------------------------------------------------------------
 void PrintCPolyhedron(C_Polyhedron ph, bool PrintIf0Dim = true);
 
 //------------------------------------------------------------------------------
