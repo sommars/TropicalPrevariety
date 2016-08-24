@@ -27,7 +27,7 @@ void PreintersectCones (Hull &H1, Hull &H2) {
 
 //------------------------------------------------------------------------------
 struct c_poly_compare {
-    bool operator() (const C_Polyhedron& lhs, const C_Polyhedron& rhs) const{
+    bool operator() (const NNC_Polyhedron& lhs, const NNC_Polyhedron& rhs) const{
         stringstream s1,s2;
         s1 << lhs.minimized_generators();
         s2 << rhs.minimized_generators();
@@ -66,7 +66,7 @@ vector<vector<vector<int> > > CyclicN(int n, bool Reduced) {
 }
 
 //------------------------------------------------------------------------------				
-bool ConeSort(C_Polyhedron a, C_Polyhedron b) {
+bool ConeSort(NNC_Polyhedron a, NNC_Polyhedron b) {
 	return a.affine_dimension() > b.affine_dimension();
 }
 
@@ -172,7 +172,7 @@ class IntersectTest {
 				cs2.insert(*i);
 			};
 			Cone TempCone;
-			C_Polyhedron TempCPolyhedron(cs2, dummy);
+			NNC_Polyhedron TempCPolyhedron(cs2, dummy);
 			TempCone.Polyhedron = TempCPolyhedron;
 			TempCone.Polyhedron.affine_dimension();
 			ConeIntersectionCount++;
@@ -298,14 +298,14 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 				cs2.insert(*i);
 			};
 			Cone TempCone;
-			C_Polyhedron TempCPolyhedron(cs2, dummy);
+			NNC_Polyhedron TempCPolyhedron(cs2, dummy);
 			TempCone.Polyhedron = TempCPolyhedron;
 			TempCone.Polyhedron.affine_dimension();
 			ConeIntersectionCount++;
 			int ExpectedDimension = min(EdgeToTest.EdgeCone.Polyhedron.affine_dimension(),NewCone.Polyhedron.affine_dimension()) - 1;
 			IntersectionTime += double(clock() - IntBegin);
-
-			if (ExpectedDimension <= TempCone.Polyhedron.affine_dimension()) {
+			if (TempCone.Polyhedron.affine_dimension() > 0) {
+			//if (ExpectedDimension <= TempCone.Polyhedron.affine_dimension()) {
 				PretropGraphEdges.insert(EdgeToTestIndex);
 			
 				clock_t begin = clock();
@@ -360,11 +360,14 @@ int main(int argc, char* argv[]) {
 		n = n - 1;
 	};
 	
-	vector<vector<vector<int> > >::iterator CycIt;
-	int TestIndex = 0;
-	for (CycIt=Cyc4.begin(); CycIt != Cyc4.end(); CycIt++) {
-		Hulls.push_back(NewHull(*CycIt));
-		TestIndex++;
+	for (size_t i = 0; i != Cyc4.size(); i++) {
+		if ((i != 0) and (i != 2)) {
+			//continue;
+		};
+		if ((i != 0) and (i != 1) and (i != 2) and (i != 4)) {
+			//continue;
+		};
+		Hulls.push_back(NewHull(Cyc4[i]));
 	}
 	//sort( Hulls.begin(), Hulls.end(), HullSort);
 	
@@ -420,8 +423,48 @@ int main(int argc, char* argv[]) {
 			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", TreeLevel, Cones.size(), ConeVector.size(),ConeIntersectionCount);
 			TreeLevel++;
 		};
-	}
-	else if (string(argv[2]) == "new") {
+	} else if (string(argv[2]) == "vertexrefinement") {
+		// Start by initializing the objects.
+		vector<vector<Cone> > Cones;
+		int HullIndex = 0;
+		vector<Hull>::iterator it;
+		for (it=Hulls.begin(); it != Hulls.end(); it++) {
+			if (HullIndex == 0) {
+				ConeVector = (*it).VertexCones;
+			} else {
+				Cones.push_back((*it).VertexCones);
+			};			
+			HullIndex++;
+		};
+
+		cout << "ConeVector count: " << ConeVector.size() << endl;
+		cout << "Cones count: " << Cones.size() << endl;
+		
+		//Iterate through Cones
+		vector<vector<Cone> >::iterator ConesItr;
+		int TreeLevel = 1;
+		for (ConesItr=Cones.begin(); ConesItr != Cones.end(); ConesItr++) {
+			vector<Cone> TestCones = *ConesItr;
+			vector<Cone> NewCones;
+			//Iterate through Cones
+			vector<Cone>::iterator ConeItr;
+			for (ConeItr=ConeVector.begin(); ConeItr != ConeVector.end(); ConeItr++) {
+				//Iterate through TestCones
+				Cone Cone1 = *ConeItr;
+				vector<Cone>::iterator TestConesItr;
+				for (TestConesItr=TestCones.begin(); TestConesItr != TestCones.end(); TestConesItr++) {
+					Cone NewCone = IntersectCones(*TestConesItr, Cone1);
+					ConeIntersectionCount++;
+					if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
+						NewCones.push_back(NewCone);
+					};
+				};
+			};
+			ConeVector = NewCones;
+			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", TreeLevel, Cones.size(), ConeVector.size(),ConeIntersectionCount);
+			TreeLevel++;
+		};
+	}	else if (string(argv[2]) == "new") {
 		for(int i = 0; i != Hulls.size(); i++){
 			for(int j = 0; j != Hulls[i].Edges.size(); j++){
 				vector<set<int> > InitialSet (Hulls.size());
@@ -593,7 +636,7 @@ int main(int argc, char* argv[]) {
 		int NonIntersection = 0;
 		for (size_t i = 0; i != Cliques.size(); i++) {
 			vector<int> Clique = Cliques[i];
-			C_Polyhedron ph = Hulls[0].Edges[Clique[0]].EdgeCone.Polyhedron;
+			NNC_Polyhedron ph = Hulls[0].Edges[Clique[0]].EdgeCone.Polyhedron;
 			bool ShouldAddCone = true;
 			for (size_t j = 1; j != Clique.size(); j++) {
 				if (ph.affine_dimension() == 0) {
@@ -625,11 +668,13 @@ int main(int argc, char* argv[]) {
 		for (Generator_System::const_iterator gsi = gs.begin(),
 		gs_end = gs.end(); gsi != gs_end; ++gsi) {
 			Generator gen = *gsi;
-			if (gen.is_point() or gen.is_line()) {
+			cout << gen << endl;
+			if (gen.is_point() or gen.is_line() or gen.is_closure_point()) {
 				continue;
 			};
 			if ( find(gv.begin(), gv.end(), gen) == gv.end() ) {
-					gv.push_back(gen);
+				gv.push_back(gen);
+				cout << "Good generator: " << gen << endl;
 			};
 		};
 	};
