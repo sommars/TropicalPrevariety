@@ -75,7 +75,7 @@ bool operator == (const Cone &L, const Cone &R)
 {
     return(L.Polyhedron == R.Polyhedron);
 }
-
+/*
 //------------------------------------------------------------------------------
 class IntersectTest {
 	int SpaceDimension;
@@ -210,13 +210,12 @@ class IntersectTest {
 		Result[ConeIndex] = GetCones(Tree, HullIndex+1);
 	};
 }	
-};
+};*/
 
-vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &Edges, vector<vector<int> > &Pts, map<vector<int>,int> &PointToIndexMap, vector<Cone> &TestCones)
+vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &Edges, vector<vector<int> > &Pts, map<vector<int>,int> &PointToIndexMap, vector<Cone> &TestCones, map<int,vector<int> > &IndexToPointMap)
 {
 	Node Tree;
 	Tree.IsLeaf = false;
-
 	for(size_t ConeIndex= 0; ConeIndex != TestCones.size(); ConeIndex++) {
 		Recycle_Input dummy;
 		Cone NewCone = TestCones[ConeIndex];
@@ -224,8 +223,11 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 		//take a random vector from cone		
 		vector<int> RandomVector(SpaceDimension, 0);
 		Generator_System gs = NewCone.Polyhedron.minimized_generators();
-		for (Generator_System::const_iterator i = gs.begin(),
-		gs_end = gs.end(); i != gs_end; ++i) {
+		for (Generator_System::const_iterator i = gs.begin(),gs_end = gs.end(); i != gs_end; ++i) {
+			if (!(*i).is_ray() && !(*i).is_line()) {
+				continue;
+			};
+
 			for (size_t j = 0; j != SpaceDimension; j++) {
 				stringstream s;
 				s << (*i).coefficient(Variable(j));
@@ -236,7 +238,7 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 		};
 		//take initial form using that vector.
 		vector<vector<int> > InitialForm = FindInitialForm(Pts, RandomVector);
-	
+
 		set<int> InitialIndices;
 		for (vector<vector<int> >::iterator InitialFormItr=InitialForm.begin();
 		InitialFormItr != InitialForm.end(); InitialFormItr++) {
@@ -247,7 +249,8 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 		vector<int> InitialEdgesToTest;
 		for(size_t EdgeIndex = 0; EdgeIndex != Edges.size(); EdgeIndex++) {
 			if (SetsDoIntersect(InitialIndices, Edges[EdgeIndex].PointIndices)
-			&& ( find(NewConeIntersectionIndices.begin(), NewConeIntersectionIndices.end(), EdgeIndex) != NewConeIntersectionIndices.end())) {
+			&& ( find(NewConeIntersectionIndices.begin(), NewConeIntersectionIndices.end(), EdgeIndex) != NewConeIntersectionIndices.end())
+			) {
 				InitialEdgesToTest.push_back(EdgeIndex);
 			};
 		};
@@ -278,6 +281,7 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 			bool ConeDoesContain = false;
 			if (DoConeContainment) {
 				ConeDoesContain = EdgeToTest.EdgeCone.Polyhedron.contains(NewCone.Polyhedron);
+				ConeDoesContain = false;
 			};
 			ContainmentTime += double(clock() - ContainmentBegin);
 			
@@ -300,12 +304,9 @@ vector<Cone> IntersectTestTwo(int SpaceDimension, int HullIndex, vector<Edge> &E
 			Cone TempCone;
 			NNC_Polyhedron TempCPolyhedron(cs2, dummy);
 			TempCone.Polyhedron = TempCPolyhedron;
-			TempCone.Polyhedron.affine_dimension();
 			ConeIntersectionCount++;
-			int ExpectedDimension = min(EdgeToTest.EdgeCone.Polyhedron.affine_dimension(),NewCone.Polyhedron.affine_dimension()) - 1;
 			IntersectionTime += double(clock() - IntBegin);
 			if (TempCone.Polyhedron.affine_dimension() > 0) {
-			//if (ExpectedDimension <= TempCone.Polyhedron.affine_dimension()) {
 				PretropGraphEdges.insert(EdgeToTestIndex);
 			
 				clock_t begin = clock();
@@ -367,7 +368,13 @@ int main(int argc, char* argv[]) {
 		if ((i != 0) and (i != 1) and (i != 2) and (i != 4)) {
 			//continue;
 		};
-		Hulls.push_back(NewHull(Cyc4[i]));
+		bool UseHalfOpenCones;
+		if (i==0) {
+			UseHalfOpenCones = true;
+		} else {
+			UseHalfOpenCones = false;
+		}
+		Hulls.push_back(NewHull(Cyc4[i], UseHalfOpenCones));
 	}
 	//sort( Hulls.begin(), Hulls.end(), HullSort);
 	
@@ -423,47 +430,6 @@ int main(int argc, char* argv[]) {
 			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", TreeLevel, Cones.size(), ConeVector.size(),ConeIntersectionCount);
 			TreeLevel++;
 		};
-	} else if (string(argv[2]) == "vertexrefinement") {
-		// Start by initializing the objects.
-		vector<vector<Cone> > Cones;
-		int HullIndex = 0;
-		vector<Hull>::iterator it;
-		for (it=Hulls.begin(); it != Hulls.end(); it++) {
-			if (HullIndex == 0) {
-				ConeVector = (*it).VertexCones;
-			} else {
-				Cones.push_back((*it).VertexCones);
-			};			
-			HullIndex++;
-		};
-
-		cout << "ConeVector count: " << ConeVector.size() << endl;
-		cout << "Cones count: " << Cones.size() << endl;
-		
-		//Iterate through Cones
-		vector<vector<Cone> >::iterator ConesItr;
-		int TreeLevel = 1;
-		for (ConesItr=Cones.begin(); ConesItr != Cones.end(); ConesItr++) {
-			vector<Cone> TestCones = *ConesItr;
-			vector<Cone> NewCones;
-			//Iterate through Cones
-			vector<Cone>::iterator ConeItr;
-			for (ConeItr=ConeVector.begin(); ConeItr != ConeVector.end(); ConeItr++) {
-				//Iterate through TestCones
-				Cone Cone1 = *ConeItr;
-				vector<Cone>::iterator TestConesItr;
-				for (TestConesItr=TestCones.begin(); TestConesItr != TestCones.end(); TestConesItr++) {
-					Cone NewCone = IntersectCones(*TestConesItr, Cone1);
-					ConeIntersectionCount++;
-					if ( find(NewCones.begin(), NewCones.end(), NewCone) == NewCones.end() ) {
-						NewCones.push_back(NewCone);
-					};
-				};
-			};
-			ConeVector = NewCones;
-			printf("Finished level %d of tree with %lu levels. %lu cones remain at this level. IntersectionCount = %d.\n", TreeLevel, Cones.size(), ConeVector.size(),ConeIntersectionCount);
-			TreeLevel++;
-		};
 	}	else if (string(argv[2]) == "new") {
 		for(int i = 0; i != Hulls.size(); i++){
 			for(int j = 0; j != Hulls[i].Edges.size(); j++){
@@ -474,8 +440,9 @@ int main(int argc, char* argv[]) {
 		clock_t PreintTimeStart = clock();
 		int TotalInt = 0;
 		int NonInt = 0;
-		int ExpectedDim = Hulls[0].Edges[0].EdgeCone.Polyhedron.affine_dimension() - 1;
+		int ExpectedDim = 1;
 		// TODO: switch this to explore the edge skeleton method.
+
 		for(int i = 0; i != Hulls.size(); i++){
 			vector<Edge> Edges1 = Hulls[i].Edges;
 			for(int j = i+1; j != Hulls.size(); j++){
@@ -518,7 +485,8 @@ int main(int argc, char* argv[]) {
 			} else {
 
 				clock_t ParallelBegin = clock();
-				vector<Cone> NewCones = IntersectTestTwo(H.SpaceDimension, HullIndex, Edges, Pts, PointToIndexMap, ConeVector);
+				vector<Cone> NewCones = IntersectTestTwo(H.SpaceDimension, HullIndex, Edges, Pts, PointToIndexMap, ConeVector, H.IndexToPointMap);
+				
 				ParallelTime += double(clock() - ParallelBegin);
 				clock_t begin = clock();
 				TreeTime2 += clock() - begin;
@@ -668,13 +636,12 @@ int main(int argc, char* argv[]) {
 		for (Generator_System::const_iterator gsi = gs.begin(),
 		gs_end = gs.end(); gsi != gs_end; ++gsi) {
 			Generator gen = *gsi;
-			cout << gen << endl;
-			if (gen.is_point() or gen.is_line() or gen.is_closure_point()) {
+			if (gen.is_point() or gen.is_closure_point()) {
 				continue;
 			};
 			if ( find(gv.begin(), gv.end(), gen) == gv.end() ) {
 				gv.push_back(gen);
-				cout << "Good generator: " << gen << endl;
+				cout << gen << endl;
 			};
 		};
 	};
