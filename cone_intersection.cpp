@@ -631,6 +631,7 @@ int main(int argc, char* argv[]) {
 	vector<Cone>::iterator PolyItr;
 	double AlgTime = double(clock() - AlgorithmStartTime);
 	// This is parsing and displaying all of the pretropisms.
+	vector<vector<int> > Pretropisms;
 	for (PolyItr=ConeVector.begin(); PolyItr != ConeVector.end(); PolyItr++) {
 		Generator_System gs = (*PolyItr).Polyhedron.minimized_generators();
 		for (Generator_System::const_iterator gsi = gs.begin(),
@@ -641,10 +642,12 @@ int main(int argc, char* argv[]) {
 			};
 			if ( find(gv.begin(), gv.end(), gen) == gv.end() ) {
 				gv.push_back(gen);
-				cout << gen << endl;
+				Pretropisms.push_back(GeneratorToPoint(gen));
 			};
 		};
 	};
+	sort(Pretropisms.begin(), Pretropisms.end());
+	PrintPoints(Pretropisms);
 	cout << "Number of pretropisms found: " << gv.size() << endl;
 	cout << "Hull time: " << HullTime / CLOCKS_PER_SEC << endl;
 	cout << "Containment time: " << ContainmentTime / CLOCKS_PER_SEC << endl;
